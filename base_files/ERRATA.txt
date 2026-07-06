@@ -1,0 +1,44 @@
+CNTR:
+Matthew 17:25 in KJTR, random comma in αυτω,ν
+
+Stuttgart:
+Matthew 17:14-15 is combined into 17:14 and the rest of the chapter is offset
+Mark 4:40-41 is combined into 4:40 (no other offsets b/c end of chapter)
+Mark 9:1 is subsumed into 8:38 and the entire chapter is offset
+Acts 7:55-56 is combined into 7:55 and the rest of the chapter is offset
+Acts 9:5-6 is a variant and the base part of 9:6 got subsumed into 9:7
+Acts 14:7 is subsumed into 14:6 and the rest of the chapter is offset
+Acts 23:25 was subsumed into 23:26
+
+John 5:4 OK (variant)
+Acts 8:37 OK (variant)
+Acts 15:34 OK (variant)
+Acts 18:4 OK (variant, apparently)
+Acts 24:7 OK (variant)
+Acts 28:29 OK (variant)
+Romans 16:24 OK (variant)
+
+
+Original errata:
+In 40 17, missing in latin: {27}, missing in Greek: set()
+In 40 23, missing in latin: {14}, missing in Greek: set()
+In 41 4, missing in latin: {41}, missing in Greek: set()
+In 41 9, missing in latin: {50}, missing in Greek: set()
+In 43 5, missing in latin: {4}, missing in Greek: set()
+In 44 7, missing in latin: {60}, missing in Greek: set()
+In 44 8, missing in latin: {37}, missing in Greek: set()
+In 44 9, missing in latin: {6}, missing in Greek: set()
+In 44 14, missing in latin: {28}, missing in Greek: set()
+In 44 15, missing in latin: {34}, missing in Greek: set()
+In 44 18, missing in latin: {4}, missing in Greek: set()
+In 44 23, missing in latin: {25}, missing in Greek: set()
+In 44 24, missing in latin: {7}, missing in Greek: set()
+In 44 28, missing in latin: {29}, missing in Greek: set()
+In 45 16, missing in latin: {24}, missing in Greek: set()
+
+
+
+paratext
+vref text file 41899 words long
+	she will send master vref and API info
+	eflomal

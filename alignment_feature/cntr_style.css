@@ -1,0 +1,132 @@
+:root {
+    --theme: #F5C13C;
+    --manuscript: #EAC17D;
+    --tools: #CC8620;
+    --link: #0066CC;
+    --hover: #D3D3D3
+}
+
+* {
+    margin: 0
+}
+
+html {
+    height: 100%
+}
+
+body {
+    font-family: 'Segoe UI', Roboto, 'Trebuchet MS', Arial, sans-serif
+}
+
+table {
+    border-collapse: collapse
+}
+
+td {
+    vertical-align: top
+}
+
+a {
+    color: var(--link);
+    text-decoration: none
+}
+
+a:hover {
+    background-color: var(--hover)
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    font-family: 'Segoe UI', Roboto, 'Trebuchet MS', Arial, sans-serif
+}
+
+header {
+    padding: .5rem 1rem;
+    background: #FADD93;
+    font-size: 1.1rem;
+    line-height: 1.1rem;
+    vertical-align: bottom;
+
+    .title {
+        font-size: 1.1rem;
+        vertical-align: bottom
+    }
+
+    .emoji {
+        font-size: .75rem
+    }
+}
+
+main {
+    flex: 1 1 auto;
+    position: relative;
+    overflow-y: auto;
+    padding: 1rem;
+
+    h1 {
+        font-family: Arial;
+        font-size: 1.2rem;
+        font-style: italic;
+        font-weight: normal;
+        color: #523d02
+    }
+
+    ul,
+    ol {
+        padding-left: 2rem
+    }
+
+    h1,
+    p,
+    ul,
+    table {
+        margin-bottom: 1rem
+    }
+
+    line-height:1.2
+}
+
+.submit {
+    border-radius: 8px;
+    background: #C1FCC1
+}
+
+.control,
+.submit {
+    display: inline-block;
+    padding: 1px 6px;
+    border: 1px solid black;
+    background: #eee;
+    color: black;
+    vertical-align: middle;
+    font-size: .8rem
+}
+
+.control.pressed {
+    border: 1px inset;
+    background: #ccc
+}
+
+.control:hover,
+.submit:hover {
+    background: var(--hover)
+}
+
+.together {
+    margin-left: 1rem;
+    white-space: nowrap
+}
+
+.label {
+    font-style: italic;
+    vertical-align: middle;
+    font-size: .9rem
+}
+
+object {
+    border: none;
+    width: 100%;
+    height: 100%
+}

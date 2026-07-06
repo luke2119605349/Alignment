@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CNTR — Greek/Latin Alignment</title>
+  <link href="./cntr_style.css" rel="stylesheet">
+  <link href="./alignment.css" rel="stylesheet">
+</head>
+<body>
+  <nav>
+    <div class="banner">
+      <img src="https://greekcntr.org/_shared/assets/logo.png" alt="CNTR Logo">
+      Center for New Testament Restoration
+    </div>
+  </nav>
+
+  <header>
+    <span class="title">Greek/Latin Alignment</span>
+  </header>
+
+  <main>
+    <h1>Align one row of text with another</h1>
+
+    <form class="alignment-form" id="alignment-form">
+      <div class="field">
+        <label>Verse</label>
+        <span class="verse-select together">
+          <select id="book-select" title="select book"></select>
+          <select id="chapter-select" title="select chapter"></select>
+          <b>:</b>
+          <select id="verse-select" title="select verse"></select>
+        </span>
+      </div>
+
+      <div class="field">
+        <label>GREEK</label>
+        <div id="greek-text" class="readonly-text" aria-readonly="true"></div>
+      </div>
+
+      <div class="field">
+        <label for="latin-text">LATIN</label>
+        <textarea id="latin-text" name="latin" class="readonly-text" aria-readonly="true"></textarea>
+      </div>
+
+      <div class="field">
+        <label>ALIGNMENT</label>
+        <div class="verse-alignment" id="verse-alignment" aria-live="polite">
+          <div class="alignment-canvas" id="verse-alignment-canvas">
+            <svg class="lines" id="verse-alignment-lines" aria-hidden="true"></svg>
+            <div class="alignment-scroll" id="verse-alignment-scroll">
+              <div class="greek-row" id="verse-greek-row"></div>
+              <div class="latin-row" id="verse-latin-row"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="submit" id="request-realignment">Request realignment</button>
+      </div>
+    </form>
+  </main>
+
+  <div class="popup-backdrop" id="popup-backdrop"></div>
+  <div class="popup" id="realignment-popup" role="dialog" aria-labelledby="popup-title" aria-modal="true">
+    <div class="popup-header" id="popup-header">
+      <span class="popup-close" id="popup-close" title="close">✕</span>
+      <span id="popup-title">Realignment</span>
+    </div>
+    <div class="popup-body">
+      <p class="hint">Underneath each Latin word, enter the index of the corresponding Greek word</p>
+      <div class="alignment-canvas" id="alignment-canvas">
+        <svg class="lines" id="alignment-lines" aria-hidden="true"></svg>
+        <div class="alignment-scroll" id="alignment-scroll">
+          <div class="greek-row" id="greek-row"></div>
+          <div class="latin-row" id="latin-row"></div>
+        </div>
+      </div>
+    </div>
+    <div class="popup-footer">
+      <button type="button" class="submit" id="submit-alignment">Submit</button>
+      <button type="button" class="submit" id="clear-alignment">Clear Index Matches</button>
+      <button type="button" class="submit" id="reset-alignment">Restore Default Index Matches</button>
+      <textarea id="json-output" class="json-output" readonly spellcheck="false" aria-label="Alignment JSON output"></textarea>
+    </div>
+  </div>
+
+  <script type="module" src="./alignment.js"></script>
+</body>
+</html>
