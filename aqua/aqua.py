@@ -139,7 +139,7 @@ vrefids = open("vref_ids.txt").readlines()
 fout = f"aqua{time()}.txt"
 open(fout, "w")
 
-__s = 2385#None#7783
+__s = None#7783
 __e = None#7788+31
 
 for vref, fwd, rev, g, l, vid in list(zip(vreflist, gtol, ltog, greek, latin, vrefids))[__s:__e]:
