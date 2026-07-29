@@ -3,6 +3,7 @@ import json
 from collections import defaultdict, deque
 from math import sqrt
 from time import time
+from aqua_browser_align import aqua_browser_align
 
 AQUAURL=open('../.secrets/aqua_url.txt').read().strip()
 USERNAME=open('../.secrets/aqua_username.txt').read().strip()
@@ -43,22 +44,11 @@ def ___safe_idx_loop(lst, elem, start_idx):
         except ValueError:
             idx -= 1
 
-def align_latin(b, c, v, vid, eflomal, gsplit, lsplit):
-    res = req_aqua(f"{AQUAURL}/alignmentscores?assessment_id=24290&book={b}&chapter={c}&verse={v}&score_type=threshold")
-    jr = res['results']
-    jj = [_j for _j in jr if _j['source'] != _j['target']]
-
-    # greek_v = get_greek(b, c, v)
-    # latin_v = get_latin(b, c, v).split()
-
-    # print(vid)
-    # print(gsplit)
-    # print(lsplit)
-
-    lsorted = dict()
+# Custom alignment function that uses the eflomal dictionary to align the words. Prefer aqua_browser_align over this.
+def bespoke_align(gsplit, lsplit, aqua_alignment_blob, eflomal):
     ks_ctr = dict()
     ks_dict = dict()
-    for j in sorted(jj, key=lambda x: x['source']):
+    for j in sorted(aqua_alignment_blob, key=lambda x: x['source']):
         src = j['source']
         dst = j['target']
         conf_factor = j['score']
@@ -76,7 +66,7 @@ def align_latin(b, c, v, vid, eflomal, gsplit, lsplit):
             if src not in gsplit or dst not in lsplit:
                 continue
 
-            ct_lst = list(filter(lambda x: x['source'] == src and x['target'] == dst, jj))
+            ct_lst = list(filter(lambda x: x['source'] == src and x['target'] == dst, aqua_alignment_blob))
             expected_ct = len(ct_lst)
             
             # Since we are iterating, there could be errors in the indices. If we find a mismatch, we should just dock the confidence score and default to the last found index
@@ -116,17 +106,26 @@ def align_latin(b, c, v, vid, eflomal, gsplit, lsplit):
         
         # print(conf_factor, ks, ids)
 
+    return dict(sorted(ks_dict.items(), key=lambda x: x[0]))
+
+def align_latin(b, c, v, vid, eflomal, gsplit, lsplit):
+    res = req_aqua(f"{AQUAURL}/alignmentscores?assessment_id=24290&book={b}&chapter={c}&verse={v}&score_type=threshold")
+    aqua_alignment_blob = [j for j in res['results'] if j['source'] != j['target']]
+
+    aligned = aqua_browser_align(gsplit, lsplit, aqua_alignment_blob)
+    # bespoke_aligned = bespoke_align(gsplit, lsplit, aqua_alignment_blob, eflomal)
+
     # Write out in whatever format
     for lidx, lword in enumerate(lsplit):
         gstrs = []
 
-        for g_id, conf in sorted(ks_dict.get(lidx, {}).items(), key=lambda x: x[0]):
+        for g_id, conf in sorted(aligned.get(lidx, {}).items(), key=lambda x: x[0]):
             gstrs.append(f"{int(vid)*1000 + g_id + 1} {gsplit[g_id]} {conf}")
-        
-        fstr = f"{lsplit[lidx]} - {' '.join(gstrs)}"
-        with open(fout, "a") as f:
-            f.write(fstr + "\n")
+
+        fstr = f"{lsplit[lidx]} - {' '.join(gstrs)}\n"
         # print(fstr)
+        with open(fout, "a", encoding='utf-8') as f:
+            f.write(fstr)
     print(vid)
 
 gtol = open("gtol.fwd").readlines()
@@ -137,10 +136,10 @@ vreflist = open("ntvref.txt").readlines()
 vrefids = open("vref_ids.txt").readlines()
 
 fout = f"aqua{time()}.txt"
-open(fout, "w")
+open(fout, "w", encoding='utf-8')
 
-__s = None#7783
-__e = None#7788+31
+__s = None
+__e = None
 
 for vref, fwd, rev, g, l, vid in list(zip(vreflist, gtol, ltog, greek, latin, vrefids))[__s:__e]:
     _tmp = vref[:-1].split(' ')

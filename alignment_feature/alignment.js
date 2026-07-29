@@ -1,5 +1,8 @@
 import { NT_BOOKS } from './verse_data.js';
 
+/** Default alignment option filename (must match an entry in files/options/manifest.json). */
+const DEFAULT_ALIGNMENT_FILENAME = 'aqua_alignment_using_aqua.txt';
+
 const greekInput = document.getElementById('greek-text');
 const latinInput = document.getElementById('latin-text');
 const requestBtn = document.getElementById('request-realignment');
@@ -23,9 +26,12 @@ const verseAlignmentCanvas = document.getElementById('verse-alignment-canvas');
 const verseGreekRow = document.getElementById('verse-greek-row');
 const verseLatinRow = document.getElementById('verse-latin-row');
 const verseLinesSvg = document.getElementById('verse-alignment-lines');
+const alignmentSourceSelect = document.getElementById('alignment-source-select');
 
 let verseCorpus = null;
 let alignmentByVid = null;
+let alignmentSourceFile = DEFAULT_ALIGNMENT_FILENAME;
+let alignmentCache = new Map();
 
 function splitWords(text) {
   return text.trim().split(/\s+/).filter(Boolean);
@@ -137,10 +143,7 @@ function parseAlignmentLine(line) {
   return { latinWord, pairs };
 }
 
-async function loadAlignmentData() {
-  if (alignmentByVid) return alignmentByVid;
-
-  const text = await fetch('./files/aqua_alignment.txt').then((res) => res.text());
+function parseAlignmentText(text) {
   const byVid = new Map();
   let currentVid = null;
 
@@ -157,8 +160,67 @@ async function loadAlignmentData() {
     byVid.get(currentVid).push(entry);
   });
 
+  return byVid;
+}
+
+async function loadAlignmentOptions() {
+  const res = await fetch('./files/options/manifest.json');
+  if (!res.ok) {
+    throw new Error(`Could not load alignment options manifest (${res.status})`);
+  }
+
+  const options = await res.json();
+  if (!Array.isArray(options) || options.length === 0) {
+    throw new Error('Alignment options manifest is empty');
+  }
+
+  const filenames = options.map((option) => option.filename).filter(Boolean);
+  if (filenames.length === 0) {
+    throw new Error('Alignment options manifest has no filenames');
+  }
+
+  alignmentSourceSelect.replaceChildren();
+  options.forEach(({ displayName, filename }) => {
+    if (!filename) return;
+    alignmentSourceSelect.appendChild(
+      new Option(displayName || filename, filename),
+    );
+  });
+
+  if (filenames.includes(DEFAULT_ALIGNMENT_FILENAME)) {
+    alignmentSourceFile = DEFAULT_ALIGNMENT_FILENAME;
+  } else if (!filenames.includes(alignmentSourceFile)) {
+    alignmentSourceFile = filenames[0];
+  }
+  alignmentSourceSelect.value = alignmentSourceFile;
+}
+
+async function loadAlignmentData(forceReload = false) {
+  if (!alignmentSourceFile) {
+    await loadAlignmentOptions();
+  }
+
+  if (!forceReload && alignmentCache.has(alignmentSourceFile)) {
+    alignmentByVid = alignmentCache.get(alignmentSourceFile);
+    return alignmentByVid;
+  }
+
+  const text = await fetch(`./files/options/${encodeURIComponent(alignmentSourceFile)}`)
+    .then((res) => {
+      if (!res.ok) throw new Error(`Could not load ${alignmentSourceFile}`);
+      return res.text();
+    });
+
+  const byVid = parseAlignmentText(text);
+  alignmentCache.set(alignmentSourceFile, byVid);
   alignmentByVid = byVid;
   return alignmentByVid;
+}
+
+async function onAlignmentSourceChange() {
+  alignmentSourceFile = alignmentSourceSelect.value;
+  await loadAlignmentData();
+  await loadCurrentVerse();
 }
 
 function greekWordsFromAlignment(alignments) {
@@ -572,10 +634,18 @@ function topOf(el, container) {
 }
 
 initVerseSelector();
-loadCurrentVerse().catch((err) => {
-  console.error('Failed to load verse data:', err);
-  greekInput.textContent = 'Could not load verse data. Serve this folder over HTTP.';
+alignmentSourceSelect.addEventListener('change', () => {
+  onAlignmentSourceChange().catch((err) => {
+    console.error('Failed to switch alignment file:', err);
+  });
 });
+
+loadAlignmentOptions()
+  .then(() => loadCurrentVerse())
+  .catch((err) => {
+    console.error('Failed to load verse data:', err);
+    greekInput.textContent = 'Could not load verse data. Serve this folder over HTTP.';
+  });
 
 requestBtn.addEventListener('click', openPopup);
 resetBtn.addEventListener('click', resetRealignmentInputs);

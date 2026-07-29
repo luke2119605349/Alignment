@@ -77,6 +77,15 @@ h1 {
   font-weight: normal;
 }
 
+.alignment-source {
+  display: block;
+  margin: 0 0 .5rem;
+}
+
+.alignment-source select {
+  min-width: 14rem;
+}
+
 .field textarea,
 .field .readonly-text {
   width: 100%;

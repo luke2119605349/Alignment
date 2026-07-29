@@ -1,0 +1,10 @@
+[
+  {
+    "displayName": "Aqua alignment (bespoke, less accurate than default)",
+    "filename": "aqua_alignment_using_bespoke.txt"
+  },
+  {
+    "displayName": "Aqua alignment (default)",
+    "filename": "aqua_alignment_using_aqua.txt"
+  }
+]
