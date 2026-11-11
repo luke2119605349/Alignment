@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Clerk auth reads cookies; keep Cache Components off for layout/auth routes.
   turbopack: {
     rules: {
       "*.css": {

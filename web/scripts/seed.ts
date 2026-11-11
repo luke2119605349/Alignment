@@ -17,10 +17,11 @@ const AQUA_ALIGN = path.join(
 );
 
 function readLines(filePath: string): string[] {
-  return fs
-    .readFileSync(filePath, "utf8")
-    .split(/\r?\n/)
-    .filter((l) => l.length > 0);
+  const raw = fs.readFileSync(filePath, "utf8");
+  const lines = raw.split(/\r?\n/);
+  // Drop a single trailing empty line from final newline; keep mid-file blanks
+  if (lines.length && lines[lines.length - 1] === "") lines.pop();
+  return lines;
 }
 
 function pad3(n: number) {

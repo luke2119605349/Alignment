@@ -1,26 +1,18 @@
+import { Suspense } from "react";
 import Link from "next/link";
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
+import { Show, SignInButton } from "@clerk/nextjs";
 
-export default function HomePage() {
+function HomeActions() {
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-semibold text-[#523d02]">
-        Greek / Latin alignment workspace
-      </h1>
-      <p className="text-[#523d02]">
-        Volunteers can open an alignment session, review Aqua-seeded links between
-        Stuttgart Latin and the CNTR Greek base text, and save corrections.
-        Manuscript variants are stored as Myers ops against each language&apos;s
-        authoritative base — not as full duplicate texts.
-      </p>
-      <SignedOut>
+    <>
+      <Show when="signed-out">
         <SignInButton mode="modal">
           <button className="rounded border border-black bg-[#C1FCC1] px-4 py-2">
             Sign in to continue
           </button>
         </SignInButton>
-      </SignedOut>
-      <SignedIn>
+      </Show>
+      <Show when="signed-in">
         <div className="flex flex-wrap gap-3">
           <Link
             href="/align"
@@ -35,7 +27,26 @@ export default function HomePage() {
             Browse variants
           </Link>
         </div>
-      </SignedIn>
+      </Show>
+    </>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <h1 className="text-2xl font-semibold text-[#523d02]">
+        Greek / Latin alignment workspace
+      </h1>
+      <p className="text-[#523d02]">
+        Volunteers can open an alignment session, review Aqua-seeded links between
+        Stuttgart Latin and the CNTR Greek base text, and save corrections.
+        Manuscript variants are stored as Myers ops against each language&apos;s
+        authoritative base — not as full duplicate texts.
+      </p>
+      <Suspense fallback={<p className="text-sm text-[#666]">Loading…</p>}>
+        <HomeActions />
+      </Suspense>
     </div>
   );
 }
