@@ -107,7 +107,10 @@ export type MyersOp =
   | { op: "insert"; baseIndex: number; tokens: string[] }
   | { op: "replace"; baseIndex: number; length: number; tokens: string[] };
 
-/** Volunteer alignment session */
+/**
+ * Volunteer alignment session.
+ * clerkUserId stores either a Clerk user id or an anonymous `anon_<uuid>` cookie id.
+ */
 export const alignmentSessions = pgTable("alignment_sessions", {
   id: serial("id").primaryKey(),
   clerkUserId: text("clerk_user_id").notNull(),

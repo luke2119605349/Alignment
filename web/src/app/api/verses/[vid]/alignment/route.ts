@@ -1,4 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
@@ -10,12 +9,15 @@ import {
   verses,
 } from "@/db/schema";
 import { resolveAlignments } from "@/lib/alignments";
+import { getVolunteerId } from "@/lib/identity";
 
 type Ctx = { params: Promise<{ vid: string }> };
 
 export async function GET(req: Request, ctx: Ctx) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const volunteerId = await getVolunteerId();
+  if (!volunteerId) {
+    return NextResponse.json({ error: "Missing volunteer identity" }, { status: 401 });
+  }
 
   const { vid } = await ctx.params;
   const url = new URL(req.url);
@@ -85,8 +87,10 @@ export async function GET(req: Request, ctx: Ctx) {
 }
 
 export async function PUT(req: Request, ctx: Ctx) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const volunteerId = await getVolunteerId();
+  if (!volunteerId) {
+    return NextResponse.json({ error: "Missing volunteer identity" }, { status: 401 });
+  }
 
   const { vid } = await ctx.params;
   const body = await req.json();
@@ -105,7 +109,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     .where(eq(alignmentSessions.id, sessionId))
     .limit(1);
 
-  if (!session || session.clerkUserId !== userId) {
+  if (!session || session.clerkUserId !== volunteerId) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
   if (session.status !== "open") {

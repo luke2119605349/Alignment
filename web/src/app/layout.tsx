@@ -9,13 +9,17 @@ export const metadata: Metadata = {
   description: "Volunteer Greek–Latin alignment and manuscript variants",
 };
 
-function AuthControls() {
+function OptionalAccount() {
   return (
     <>
       <Show when="signed-out">
         <SignInButton mode="modal">
-          <button className="rounded border border-black bg-[#C1FCC1] px-3 py-1">
-            Sign in
+          <button
+            type="button"
+            className="text-xs text-[#523d02] underline decoration-dotted"
+            title="Optional — not required to align"
+          >
+            Link account
           </button>
         </SignInButton>
       </Show>
@@ -42,8 +46,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <Link href="/variants" className="hover:underline">
                 Variants
               </Link>
-              <Suspense fallback={<span className="text-sm opacity-60">…</span>}>
-                <AuthControls />
+              <Suspense fallback={null}>
+                <OptionalAccount />
               </Suspense>
             </nav>
           </header>

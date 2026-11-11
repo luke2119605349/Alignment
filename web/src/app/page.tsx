@@ -1,36 +1,4 @@
-import { Suspense } from "react";
 import Link from "next/link";
-import { Show, SignInButton } from "@clerk/nextjs";
-
-function HomeActions() {
-  return (
-    <>
-      <Show when="signed-out">
-        <SignInButton mode="modal">
-          <button className="rounded border border-black bg-[#C1FCC1] px-4 py-2">
-            Sign in to continue
-          </button>
-        </SignInButton>
-      </Show>
-      <Show when="signed-in">
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/align"
-            className="rounded border border-black bg-[#C1FCC1] px-4 py-2"
-          >
-            Start aligning
-          </Link>
-          <Link
-            href="/variants"
-            className="rounded border border-black bg-[#FAD780] px-4 py-2"
-          >
-            Browse variants
-          </Link>
-        </div>
-      </Show>
-    </>
-  );
-}
 
 export default function HomePage() {
   return (
@@ -39,14 +7,26 @@ export default function HomePage() {
         Greek / Latin alignment workspace
       </h1>
       <p className="text-[#523d02]">
-        Volunteers can open an alignment session, review Aqua-seeded links between
-        Stuttgart Latin and the CNTR Greek base text, and save corrections.
-        Manuscript variants are stored as Myers ops against each language&apos;s
-        authoritative base — not as full duplicate texts.
+        Open an alignment session, review Aqua-seeded links between Stuttgart
+        Latin and the CNTR Greek base text, and save corrections. No email
+        sign-in is required — you are tracked with an anonymous volunteer ID
+        stored in a cookie. Manuscript variants are reconstructed with Myers
+        ops against each language&apos;s authoritative base.
       </p>
-      <Suspense fallback={<p className="text-sm text-[#666]">Loading…</p>}>
-        <HomeActions />
-      </Suspense>
+      <div className="flex flex-wrap gap-3">
+        <Link
+          href="/align"
+          className="rounded border border-black bg-[#C1FCC1] px-4 py-2"
+        >
+          Start aligning
+        </Link>
+        <Link
+          href="/variants"
+          className="rounded border border-black bg-[#FAD780] px-4 py-2"
+        >
+          Browse variants
+        </Link>
+      </div>
     </div>
   );
 }

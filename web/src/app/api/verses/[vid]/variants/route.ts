@@ -1,4 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
@@ -15,9 +14,6 @@ import type { MyersOp } from "@/db/schema";
 type Ctx = { params: Promise<{ vid: string }> };
 
 export async function GET(req: Request, ctx: Ctx) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { vid } = await ctx.params;
   const url = new URL(req.url);
   const siglum = url.searchParams.get("manuscript");

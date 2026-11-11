@@ -10,7 +10,7 @@ Volunteer Greek↔Latin alignment and manuscript variant browsing.
 
 ## Features (MVP B)
 
-1. **Alignment sessions** — signed-in volunteers edit Latin→Greek word links; saves are scoped to a session and override Aqua/system seeds for that session only.
+1. **Alignment sessions** — volunteers get an anonymous cookie ID (Clerk email sign-in optional). Saves are scoped to a session and override Aqua/system seeds for that session only.
 2. **Manuscript variants** — each language has one authoritative base word stream. Other manuscripts are reconstructed with Myers (LCS) ops against that base (not full duplicate texts).
 3. **Greek base** — CNTR Classic surface forms (`surface` / `collation_id`). Apparatus fields (Pattern/Align/Span/…) live in `greek_apparatus`, not in the readable base.
 4. **Latin base** — Stuttgart NT (`alignment_feature/files/latin.txt`).

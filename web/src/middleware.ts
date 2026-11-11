@@ -1,16 +1,13 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import { withVolunteerCookie } from "@/lib/identity";
 
-const isPublicRoute = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/api/health",
-]);
-
-export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
-  }
+/**
+ * Clerk runs for optional account linking later.
+ * Routes are not protected — volunteers are tracked via anonymous cookie.
+ */
+export default clerkMiddleware(async (_auth, req) => {
+  const { res } = withVolunteerCookie(req);
+  return res;
 });
 
 export const config = {
