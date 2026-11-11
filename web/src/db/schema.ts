@@ -110,6 +110,7 @@ export type MyersOp =
 /**
  * Volunteer alignment session.
  * clerkUserId stores either a Clerk user id or an anonymous `anon_<uuid>` cookie id.
+ * `label` is the unique session name; `username` is the volunteer display name.
  */
 export const alignmentSessions = pgTable("alignment_sessions", {
   id: serial("id").primaryKey(),
@@ -121,11 +122,15 @@ export const alignmentSessions = pgTable("alignment_sessions", {
     .notNull()
     .references(() => languages.id),
   status: text("status").notNull().default("open"),
-  label: text("label"),
+  /** Unique session name (required for new sessions). */
+  label: text("label").notNull(),
+  /** Volunteer display name captured at session creation. */
+  username: text("username").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp("closed_at", { withTimezone: true }),
 }, (t) => [
   index("sessions_user").on(t.clerkUserId),
+  uniqueIndex("sessions_label_unique").on(t.label),
 ]);
 
 /**

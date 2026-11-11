@@ -47,38 +47,77 @@ export function chapterCompletion(
   return { done, total: verseCount, pct, complete: done === verseCount && verseCount > 0 };
 }
 
+/**
+ * Book progress: pct averages chapter completion so any partially finished
+ * chapter marks the book as partial (not untouched red).
+ * `done` still counts fully completed chapters.
+ */
 export function bookCompletion(completed: Set<string>, bookIdx: number) {
   const book = NT_BOOKS[bookIdx];
-  if (!book) return { done: 0, total: 0, pct: 0, complete: false, chapterPcts: [] as number[] };
+  if (!book) {
+    return {
+      done: 0,
+      total: 0,
+      pct: 0,
+      complete: false,
+      partial: false,
+      chapterPcts: [] as number[],
+    };
+  }
   const chapterPcts: number[] = [];
   let chaptersDone = 0;
+  let chaptersTouched = 0;
   for (let c = 1; c <= book.verseCounts.length; c += 1) {
     const ch = chapterCompletion(completed, book.num, c, book.verseCounts[c - 1] ?? 0);
     chapterPcts.push(ch.pct);
     if (ch.complete) chaptersDone += 1;
+    if (ch.pct > 0) chaptersTouched += 1;
   }
   const total = book.verseCounts.length;
-  const pct = total === 0 ? 0 : chaptersDone / total;
+  const avgPct =
+    total === 0 ? 0 : chapterPcts.reduce((sum, p) => sum + p, 0) / total;
+  const complete = chaptersDone === total && total > 0;
+  const partial = !complete && chaptersTouched > 0;
+  // Any chapter progress ⇒ book pct > 0 (partial color); full ⇒ 1.
+  const pct = complete ? 1 : avgPct;
   return {
     done: chaptersDone,
     total,
     pct,
-    complete: chaptersDone === total && total > 0,
+    complete,
+    partial,
     chapterPcts,
   };
 }
 
+/**
+ * NT / session progress: averages book pcts so any partially finished book
+ * marks the whole NT as partial.
+ */
 export function ntCompletion(completed: Set<string>) {
   let booksDone = 0;
+  let booksTouched = 0;
   const bookPcts: number[] = [];
   for (let i = 0; i < NT_BOOKS.length; i += 1) {
     const b = bookCompletion(completed, i);
     bookPcts.push(b.pct);
     if (b.complete) booksDone += 1;
+    if (b.pct > 0) booksTouched += 1;
   }
   const total = NT_BOOKS.length;
-  const pct = total === 0 ? 0 : booksDone / total;
-  return { done: booksDone, total, pct, complete: booksDone === total && total > 0, bookPcts };
+  const avgPct =
+    total === 0 ? 0 : bookPcts.reduce((sum, p) => sum + p, 0) / total;
+  const complete = booksDone === total && total > 0;
+  const partial = !complete && booksTouched > 0;
+  const pct = complete ? 1 : avgPct;
+  return {
+    done: booksDone,
+    total,
+    pct,
+    complete,
+    partial,
+    bookPcts,
+  };
 }
 
 /** Advance to the next verse in NT order; null if at the end. */

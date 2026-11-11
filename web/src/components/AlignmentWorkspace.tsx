@@ -21,16 +21,46 @@ import {
 } from "@/lib/progress";
 import { NT_BOOKS } from "@/lib/verse_data";
 
-type Session = { id: number; label: string | null; status: string };
+type Session = {
+  id: number;
+  label: string;
+  username: string;
+  status: string;
+  createdAt: string;
+};
 type SourceMeta = { id: string; displayName: string; filename: string; isDefault?: boolean };
 type DiffResult = {
   added: { latinIndex: number; greekIdx: number }[];
   removed: { latinIndex: number; greekIdx: number }[];
   unchanged: number;
 };
+type SessionSortKey = "label" | "username" | "createdAt";
 
 const SOURCE_PREF_KEY = "cntr_align_source";
 const AUTOSAVE_MS = 300;
+
+function formatSessionTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function sortSessions(list: Session[], key: SessionSortKey, dir: "asc" | "desc") {
+  const mul = dir === "asc" ? 1 : -1;
+  return [...list].sort((a, b) => {
+    if (key === "createdAt") {
+      const ta = new Date(a.createdAt).getTime();
+      const tb = new Date(b.createdAt).getTime();
+      return (ta - tb) * mul;
+    }
+    return a[key].localeCompare(b[key], undefined, { sensitivity: "base" }) * mul;
+  });
+}
 
 function editsFromEntries(entries: LatinAlignEntry[]) {
   const next: Record<number, string> = {};
@@ -114,6 +144,13 @@ export function AlignmentWorkspace() {
   const [verse, setVerse] = useState(1);
   const [session, setSession] = useState<Session | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionSort, setSessionSort] = useState<SessionSortKey>("createdAt");
+  const [sessionSortDir, setSessionSortDir] = useState<"asc" | "desc">("desc");
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newSessionName, setNewSessionName] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [creating, setCreating] = useState(false);
   const [sources, setSources] = useState<SourceMeta[]>([]);
   const [alignmentSource, setAlignmentSource] = useState("aqua");
   const [greek, setGreek] = useState<string[]>([]);
@@ -170,6 +207,11 @@ export function AlignmentWorkspace() {
   );
   const ntProg = useMemo(() => ntCompletion(completed), [completed]);
 
+  const sortedSessions = useMemo(
+    () => sortSessions(sessions, sessionSort, sessionSortDir),
+    [sessions, sessionSort, sessionSortDir],
+  );
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(SOURCE_PREF_KEY);
@@ -183,7 +225,14 @@ export function AlignmentWorkspace() {
     const res = await fetch("/api/sessions");
     if (!res.ok) return [];
     const data = await res.json();
-    const list: Session[] = data.sessions ?? [];
+    const list: Session[] = (data.sessions ?? []).map(
+      (s: Session & { username?: string | null; label?: string | null }) => ({
+        ...s,
+        label: s.label ?? "",
+        username: s.username ?? "",
+        createdAt: s.createdAt,
+      }),
+    );
     setSessions(list);
     return list;
   }, []);
@@ -196,38 +245,90 @@ export function AlignmentWorkspace() {
   }, []);
 
   const createSession = useCallback(async () => {
-    const res = await fetch("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sourceLanguage: "lat",
-        targetLanguage: "grc",
-        label: "Latin → Greek",
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setStatus(data.error ?? "Could not create session");
+    const label = newSessionName.trim();
+    const username = newUsername.trim();
+    setCreateError("");
+    if (!label) {
+      setCreateError("Session name cannot be empty");
       return null;
     }
-    setSession(data.session);
-    await refreshSessions();
-    await refreshProgress(data.session.id);
-    return data.session as Session;
-  }, [refreshProgress, refreshSessions]);
+    if (!username) {
+      setCreateError("Username cannot be empty");
+      return null;
+    }
+    setCreating(true);
+    try {
+      const res = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceLanguage: "lat",
+          targetLanguage: "grc",
+          label,
+          username,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCreateError(data.error ?? "Could not create session");
+        return null;
+      }
+      const created = data.session as Session;
+      setSession(created);
+      setShowCreateForm(false);
+      setNewSessionName("");
+      setNewUsername("");
+      await refreshSessions();
+      await refreshProgress(created.id);
+      setStatus(`Created session “${created.label}”`);
+      return created;
+    } finally {
+      setCreating(false);
+    }
+  }, [newSessionName, newUsername, refreshProgress, refreshSessions]);
+
+  const deleteSession = useCallback(
+    async (s: Session) => {
+      const ok = window.confirm(
+        `Delete session “${s.label}” (${s.username})? This cannot be undone.`,
+      );
+      if (!ok) return;
+      const res = await fetch(`/api/sessions/${s.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus(data.error ?? "Could not delete session");
+        return;
+      }
+      const list = await refreshSessions();
+      if (session?.id === s.id) {
+        const next = list[0] ?? null;
+        setSession(next);
+        if (next) await refreshProgress(next.id);
+        else {
+          setCompletedVids(new Set());
+          setShowCreateForm(true);
+        }
+      }
+      setStatus(`Deleted session “${s.label}”`);
+    },
+    [refreshProgress, refreshSessions, session?.id],
+  );
 
   useEffect(() => {
     void (async () => {
       const list = await refreshSessions();
-      const open = list.find((s) => s.status === "open") ?? null;
       setSession((prev) => {
         if (prev && list.some((s) => s.id === prev.id)) return prev;
+        const open = list.find((s) => s.status === "open") ?? list[0] ?? null;
         return open;
       });
-      if (!open) await createSession();
-      else await refreshProgress(open.id);
+      if (list.length === 0) setShowCreateForm(true);
+      else {
+        const open = list.find((s) => s.status === "open") ?? list[0];
+        if (open) await refreshProgress(open.id);
+      }
     })();
-  }, [createSession, refreshProgress, refreshSessions]);
+  }, [refreshProgress, refreshSessions]);
 
   useEffect(() => {
     if (session) void refreshProgress(session.id);
@@ -377,7 +478,7 @@ export function AlignmentWorkspace() {
   }
 
   async function exportSession(s: Session) {
-    setStatus(`Exporting session #${s.id}…`);
+    setStatus(`Exporting “${s.label}”…`);
     const res = await fetch(`/api/sessions/${s.id}/export`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -391,10 +492,11 @@ export function AlignmentWorkspace() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `cntr-alignment-session-${s.id}.json`;
+    const safe = s.label.replace(/[^\w.-]+/g, "_").slice(0, 48);
+    a.download = `cntr-alignment-${safe || s.id}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setStatus(`Exported session #${s.id}`);
+    setStatus(`Exported “${s.label}”`);
   }
 
   const liveDiff = useMemo(() => {
@@ -456,47 +558,153 @@ export function AlignmentWorkspace() {
         </div>
       </section>
 
-      {/* —— Session / verse controls —— */}
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm italic">
-          Session
-          <select
-            className="ml-2 border border-[#888] bg-white px-2 py-1"
-            value={session?.id ?? ""}
-            onChange={(e) => {
-              const id = Number(e.target.value);
-              const next = sessions.find((s) => s.id === id) ?? null;
-              setSession(next);
-              if (next) void refreshProgress(next.id);
+      {/* —— Session picker —— */}
+      <section className="rounded border border-[#888] bg-white p-3">
+        <div className="mb-2 flex flex-wrap items-end gap-3">
+          <h2 className="text-sm italic text-[#523d02]">Sessions</h2>
+          <label className="text-xs italic">
+            Sort by
+            <select
+              className="ml-1 border border-[#888] bg-white px-2 py-0.5"
+              value={sessionSort}
+              onChange={(e) => setSessionSort(e.target.value as SessionSortKey)}
+            >
+              <option value="label">Name</option>
+              <option value="username">Username</option>
+              <option value="createdAt">Created</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="rounded border border-[#888] bg-[#f8f8f8] px-2 py-0.5 text-xs"
+            onClick={() =>
+              setSessionSortDir((d) => (d === "asc" ? "desc" : "asc"))
+            }
+            title="Toggle sort direction"
+          >
+            {sessionSortDir === "asc" ? "Ascending" : "Descending"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowCreateForm((v) => !v);
+              setCreateError("");
+            }}
+            className="rounded border border-black bg-[#C1FCC1] px-3 py-1 text-sm"
+          >
+            New session
+          </button>
+        </div>
+
+        {showCreateForm && (
+          <form
+            className="mb-3 grid gap-2 rounded border border-[#c9a86a] bg-[#fff8e7] p-3 sm:grid-cols-[1fr_1fr_auto]"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void createSession();
             }}
           >
-            <option value="">Select…</option>
-            {sessions.map((s) => (
-              <option key={s.id} value={s.id}>
-                #{s.id} {s.label ?? ""} ({s.status})
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          onClick={() => void createSession()}
-          className="rounded border border-black bg-[#C1FCC1] px-3 py-1 text-sm"
-        >
-          New session
-        </button>
-        {sessions.map((s) => (
-          <button
-            key={`export-${s.id}`}
-            type="button"
-            onClick={() => void exportSession(s)}
-            className="rounded border border-black bg-white px-2 py-1 text-xs"
-            title={`Export session #${s.id} as JSON`}
-          >
-            Export #{s.id}
-          </button>
-        ))}
-      </div>
+            <label className="text-xs italic">
+              Session name
+              <input
+                className="mt-0.5 w-full border border-[#888] bg-white px-2 py-1 text-sm"
+                value={newSessionName}
+                onChange={(e) => setNewSessionName(e.target.value)}
+                placeholder="Unique name"
+                required
+                maxLength={120}
+                autoFocus
+              />
+            </label>
+            <label className="text-xs italic">
+              Username
+              <input
+                className="mt-0.5 w-full border border-[#888] bg-white px-2 py-1 text-sm"
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value)}
+                placeholder="Your name"
+                required
+                maxLength={80}
+              />
+            </label>
+            <div className="flex items-end gap-2">
+              <button
+                type="submit"
+                disabled={creating}
+                className="rounded border border-black bg-[#C1FCC1] px-3 py-1 text-sm"
+              >
+                {creating ? "Creating…" : "Create"}
+              </button>
+              {sessions.length > 0 && (
+                <button
+                  type="button"
+                  className="rounded border border-[#888] bg-white px-3 py-1 text-sm"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setCreateError("");
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+            {createError && (
+              <p className="text-xs text-[#a00] sm:col-span-3">{createError}</p>
+            )}
+          </form>
+        )}
+
+        {sortedSessions.length === 0 ? (
+          <p className="text-sm text-[#666]">
+            No sessions yet — create one with a unique name and username.
+          </p>
+        ) : (
+          <ul className="max-h-48 divide-y divide-[#ddd] overflow-y-auto border border-[#ddd]">
+            {sortedSessions.map((s) => {
+              const active = session?.id === s.id;
+              return (
+                <li
+                  key={s.id}
+                  className={`flex flex-wrap items-center gap-2 px-2 py-1.5 text-sm ${
+                    active ? "bg-[#fff3c4]" : "bg-white hover:bg-[#faf6ea]"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() => {
+                      setSession(s);
+                      void refreshProgress(s.id);
+                    }}
+                  >
+                    <span className="font-medium">{s.label}</span>
+                    <span className="text-[#666]">
+                      {" "}
+                      · {s.username} · {formatSessionTime(s.createdAt)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void exportSession(s)}
+                    className="rounded border border-black bg-white px-2 py-0.5 text-xs"
+                    title={`Export “${s.label}”`}
+                  >
+                    Export
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteSession(s)}
+                    className="rounded border border-[#a00] bg-white px-2 py-0.5 text-xs text-[#a00]"
+                    title={`Delete “${s.label}”`}
+                  >
+                    Delete
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <div className="flex flex-wrap items-center gap-2">
         <select
@@ -619,9 +827,9 @@ export function AlignmentWorkspace() {
         {showDiff ? " Red dashed lines were removed from the baseline." : ""}
       </p>
 
-      {/* Full-bleed strip: uses page edges; only this region scrolls horizontally */}
+      {/* Near-full-width strip with a little page-edge margin; H-scroll only here */}
       {session && (
-        <section className="-mx-4 w-[calc(100%+2rem)] min-w-0">
+        <section className="-mx-2 w-[calc(100%+1rem)] min-w-0">
           <AlignmentCanvas
             greek={greek}
             latinEntries={latinEntries}
@@ -658,6 +866,14 @@ export function AlignmentWorkspace() {
               className="rounded border border-black bg-white px-3 py-2 text-sm"
             >
               Save draft
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportSession(session)}
+              className="rounded border border-black bg-white px-3 py-2 text-sm"
+              title="Export the currently selected session"
+            >
+              Export Current Session
             </button>
             <button
               type="button"

@@ -120,7 +120,10 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const payload = {
     sessionId,
+    name: session.label,
     label: session.label,
+    username: session.username,
+    createdAt: session.createdAt,
     exportedAt: new Date().toISOString(),
     submittedVids: submitted.map((s) => s.vid),
     verses: Object.fromEntries(
