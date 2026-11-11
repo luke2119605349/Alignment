@@ -115,6 +115,8 @@ export function AlignmentCanvas({
   const shellRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const greekGroupRef = useRef<HTMLDivElement>(null);
+  const latinGroupRef = useRef<HTMLDivElement>(null);
   const greekRowRef = useRef<HTMLDivElement>(null);
   const latinRowRef = useRef<HTMLDivElement>(null);
   const greekRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -131,6 +133,7 @@ export function AlignmentCanvas({
   const [svgSize, setSvgSize] = useState({ w: 0, h: 0 });
   const [greekOffset, setGreekOffset] = useState(0);
   const [latinOffset, setLatinOffset] = useState(0);
+  const [dragging, setDragging] = useState<DragKind | null>(null);
   const [shellHeight, setShellHeight] = useState(DEFAULT_HEIGHT);
   const [needsHScroll, setNeedsHScroll] = useState(false);
 
@@ -210,9 +213,13 @@ export function AlignmentCanvas({
   const layoutRows = useCallback(() => {
     const scroll = scrollRef.current;
     const canvas = canvasRef.current;
+    const greekGroup = greekGroupRef.current;
+    const latinGroup = latinGroupRef.current;
     const greekRow = greekRowRef.current;
     const latinRow = latinRowRef.current;
-    if (!scroll || !canvas || !greekRow || !latinRow) return;
+    if (!scroll || !canvas || !greekGroup || !latinGroup || !greekRow || !latinRow) {
+      return;
+    }
 
     const { greek: gOff, latin: lOff } = offsetsRef.current;
 
@@ -220,7 +227,6 @@ export function AlignmentCanvas({
     greekRow.style.width = "";
     greekRow.style.gap = `${MIN_GAP}px`;
     greekRow.style.justifyContent = "flex-start";
-    greekRow.style.marginBottom = "";
     latinRow.style.width = "";
     latinRow.style.gap = `${MIN_GAP}px`;
     latinRow.style.justifyContent = "flex-start";
@@ -239,10 +245,16 @@ export function AlignmentCanvas({
     const rowSpan = Math.max(gUsed, lUsed);
     greekRow.style.width = `${rowSpan}px`;
     latinRow.style.width = `${rowSpan}px`;
-    greekRow.style.marginBottom = `${Math.max(52, Math.min(88, rowSpan * 0.04))}px`;
+    greekGroup.style.marginBottom = `${Math.max(52, Math.min(88, rowSpan * 0.04))}px`;
+
+    // Include drag-handle chrome in scroll metrics
+    void greekGroup.offsetWidth;
+    const gBlock = greekGroup.offsetWidth;
+    const lBlock = latinGroup.offsetWidth;
+    const blockSpan = Math.max(gBlock, lBlock);
 
     const leftPad = Math.max(0, -gOff, -lOff);
-    const rightEdge = Math.max(rowSpan + gOff, rowSpan + lOff, rowSpan);
+    const rightEdge = Math.max(blockSpan + gOff, blockSpan + lOff, blockSpan);
     const contentWidth = leftPad + rightEdge + PAD_X * 2;
     const fits = contentWidth <= scroll.clientWidth + 0.5;
 
@@ -251,8 +263,8 @@ export function AlignmentCanvas({
     canvas.style.paddingLeft = `${PAD_X + leftPad}px`;
     canvas.style.paddingRight = `${PAD_X}px`;
 
-    greekRow.style.transform = `translateX(${gOff}px)`;
-    latinRow.style.transform = `translateX(${lOff}px)`;
+    greekGroup.style.transform = `translateX(${gOff}px)`;
+    latinGroup.style.transform = `translateX(${lOff}px)`;
 
     setNeedsHScroll(!fits);
   }, []);
@@ -290,6 +302,7 @@ export function AlignmentCanvas({
       startX: e.clientX,
       origin: kind === "greek" ? greekOffset : latinOffset,
     };
+    setDragging(kind);
   };
 
   const onRowPointerMove = (e: ReactPointerEvent) => {
@@ -309,6 +322,7 @@ export function AlignmentCanvas({
       /* ignore */
     }
     dragRef.current = null;
+    setDragging(null);
   };
 
   const onResizePointerDown = (e: ReactPointerEvent) => {
@@ -337,8 +351,9 @@ export function AlignmentCanvas({
   return (
     <div className="alignment-workspace w-full min-w-0">
       <p className="mb-1 px-1 text-[0.7rem] text-[#666]">
-        Drag a Greek or Latin row sideways to untangle overlapping links. Resize
-        from the bottom edge.
+        Use the <span className="font-medium text-[#523d02]">⇄ Drag</span>{" "}
+        handle on each row to slide Greek or Latin sideways and untangle
+        overlapping links. Resize from the bottom edge.
       </p>
       <div
         ref={shellRef}
@@ -376,105 +391,157 @@ export function AlignmentCanvas({
               ))}
             </svg>
 
-            <div className="relative z-[1]">
+            <div className="relative z-[1] space-y-0">
               <div
-                ref={greekRowRef}
-                className="greek-row flex cursor-grab flex-nowrap items-end active:cursor-grabbing"
-                style={{ gap: MIN_GAP, touchAction: "none" }}
+                ref={greekGroupRef}
+                className={`inline-flex max-w-none items-stretch rounded border border-dashed ${
+                  dragging === "greek"
+                    ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
+                    : "border-[#c9a86a]/70 bg-[#EAC17D]/25 hover:border-[#a67c2a] hover:bg-[#EAC17D]/40"
+                }`}
+                style={{ touchAction: "none" }}
                 onPointerDown={(e) => onRowPointerDown("greek", e)}
                 onPointerMove={onRowPointerMove}
                 onPointerUp={onRowPointerUp}
                 onPointerCancel={onRowPointerUp}
-                title="Drag to shift Greek words"
+                title="Drag to move the Greek word block"
+                role="group"
+                aria-label="Greek words — drag sideways to reposition"
               >
-                {greek.map((w, i) => (
-                  <div
-                    key={i}
-                    ref={(el) => {
-                      greekRefs.current[i] = el;
-                    }}
-                    className="flex shrink-0 flex-col items-center"
-                  >
-                    <div className="mb-0.5 text-[0.75rem] text-[#555]">{i}</div>
+                <div
+                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r border-[#c9a86a]/80 bg-[#EAC17D] px-1.5 py-1 text-[#523d02] select-none active:cursor-grabbing"
+                  aria-hidden
+                >
+                  <span className="text-[0.65rem] font-semibold tracking-wide">
+                    Greek
+                  </span>
+                  <span className="text-sm leading-none" aria-hidden>
+                    ⇄
+                  </span>
+                  <span className="text-[0.6rem] uppercase tracking-wider opacity-80">
+                    Drag
+                  </span>
+                </div>
+                <div
+                  ref={greekRowRef}
+                  className="greek-row flex cursor-grab flex-nowrap items-end px-1 py-1 active:cursor-grabbing"
+                  style={{ gap: MIN_GAP }}
+                >
+                  {greek.map((w, i) => (
                     <div
-                      className={`greek-word min-w-[2.75rem] border border-[#c9a86a] bg-[#EAC17D] px-1.5 py-1 text-center font-serif text-[0.95rem] ${
-                        alignedGreek.has(i) ? "" : "border-dashed opacity-75"
-                      }`}
+                      key={i}
+                      ref={(el) => {
+                        greekRefs.current[i] = el;
+                      }}
+                      className="flex shrink-0 flex-col items-center"
                     >
-                      {w}
+                      <div className="mb-0.5 text-[0.75rem] text-[#555]">{i}</div>
+                      <div
+                        className={`greek-word min-w-[2.75rem] border border-[#c9a86a] bg-[#EAC17D] px-1.5 py-1 text-center font-serif text-[0.95rem] ${
+                          alignedGreek.has(i) ? "" : "border-dashed opacity-75"
+                        }`}
+                      >
+                        {w}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
               <div
-                ref={latinRowRef}
-                className="latin-row flex cursor-grab flex-nowrap items-start active:cursor-grabbing"
-                style={{ gap: MIN_GAP, touchAction: "none" }}
+                ref={latinGroupRef}
+                className={`inline-flex max-w-none items-stretch rounded border border-dashed ${
+                  dragging === "latin"
+                    ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
+                    : "border-[#888]/70 bg-white/80 hover:border-[#555] hover:bg-[#f3f3f3]"
+                }`}
+                style={{ touchAction: "none" }}
                 onPointerDown={(e) => onRowPointerDown("latin", e)}
                 onPointerMove={onRowPointerMove}
                 onPointerUp={onRowPointerUp}
                 onPointerCancel={onRowPointerUp}
-                title="Drag to shift Latin words"
+                title="Drag to move the Latin word block"
+                role="group"
+                aria-label="Latin words — drag sideways to reposition"
               >
-                {latinEntries.map((entry, li) => {
-                  const raw =
-                    edits[entry.latinIndex] ??
-                    entry.pairs.map((p) => p.greekIdx).join(",");
-                  const { invalid } = parseIdxs(raw, greek.length);
-                  return (
-                    <div
-                      key={entry.latinIndex}
-                      ref={(el) => {
-                        latinRefs.current[li] = el;
-                      }}
-                      className="flex shrink-0 flex-col items-center border border-[#aaa] bg-white px-1.5 py-1"
-                    >
-                      <div className="min-w-[2.75rem] px-0.5 pb-2 text-center font-serif text-[0.95rem]">
-                        {entry.latinWord}
-                      </div>
-                      {editable ? (
-                        <input
-                          className={`w-8 cursor-text border text-center text-xs ${
-                            invalid
-                              ? "border-[#cc0000] bg-[#fff0f0]"
-                              : "border-[#666] bg-white"
-                          }`}
-                          value={edits[entry.latinIndex] ?? raw}
-                          onChange={(e) =>
-                            onEdit(entry.latinIndex, e.target.value)
-                          }
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => {
-                            if (
-                              e.key === "Tab" &&
-                              !e.shiftKey &&
-                              li === latinEntries.length - 1 &&
-                              onRequestSubmit
-                            ) {
-                              e.preventDefault();
-                              onRequestSubmit();
-                            }
-                          }}
-                          placeholder="idx"
-                          inputMode="numeric"
-                          title={`Greek index for "${entry.latinWord}"`}
-                        />
-                      ) : (
-                        <div className="text-[0.7rem] text-[#666]">
-                          {entry.pairs.length
-                            ? entry.pairs
-                                .map(
-                                  (p) =>
-                                    `${p.greekIdx} · ${p.confidence.toFixed(2)}`,
-                                )
-                                .join(", ")
-                            : "—"}
+                <div
+                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r border-[#aaa] bg-[#e8e8e8] px-1.5 py-1 text-[#333] select-none active:cursor-grabbing"
+                  aria-hidden
+                >
+                  <span className="text-[0.65rem] font-semibold tracking-wide">
+                    Latin
+                  </span>
+                  <span className="text-sm leading-none" aria-hidden>
+                    ⇄
+                  </span>
+                  <span className="text-[0.6rem] uppercase tracking-wider opacity-80">
+                    Drag
+                  </span>
+                </div>
+                <div
+                  ref={latinRowRef}
+                  className="latin-row flex cursor-grab flex-nowrap items-start px-1 py-1 active:cursor-grabbing"
+                  style={{ gap: MIN_GAP }}
+                >
+                  {latinEntries.map((entry, li) => {
+                    const raw =
+                      edits[entry.latinIndex] ??
+                      entry.pairs.map((p) => p.greekIdx).join(",");
+                    const { invalid } = parseIdxs(raw, greek.length);
+                    return (
+                      <div
+                        key={entry.latinIndex}
+                        ref={(el) => {
+                          latinRefs.current[li] = el;
+                        }}
+                        className="flex shrink-0 flex-col items-center border border-[#aaa] bg-white px-1.5 py-1"
+                      >
+                        <div className="min-w-[2.75rem] px-0.5 pb-2 text-center font-serif text-[0.95rem]">
+                          {entry.latinWord}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {editable ? (
+                          <input
+                            className={`w-8 cursor-text border text-center text-xs ${
+                              invalid
+                                ? "border-[#cc0000] bg-[#fff0f0]"
+                                : "border-[#666] bg-white"
+                            }`}
+                            value={edits[entry.latinIndex] ?? raw}
+                            onChange={(e) =>
+                              onEdit(entry.latinIndex, e.target.value)
+                            }
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (
+                                e.key === "Tab" &&
+                                !e.shiftKey &&
+                                li === latinEntries.length - 1 &&
+                                onRequestSubmit
+                              ) {
+                                e.preventDefault();
+                                onRequestSubmit();
+                              }
+                            }}
+                            placeholder="idx"
+                            inputMode="numeric"
+                            title={`Greek index for "${entry.latinWord}"`}
+                          />
+                        ) : (
+                          <div className="text-[0.7rem] text-[#666]">
+                            {entry.pairs.length
+                              ? entry.pairs
+                                  .map(
+                                    (p) =>
+                                      `${p.greekIdx} · ${p.confidence.toFixed(2)}`,
+                                  )
+                                  .join(", ")
+                              : "—"}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

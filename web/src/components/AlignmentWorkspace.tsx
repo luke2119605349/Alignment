@@ -146,6 +146,7 @@ export function AlignmentWorkspace() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionSort, setSessionSort] = useState<SessionSortKey>("createdAt");
   const [sessionSortDir, setSessionSortDir] = useState<"asc" | "desc">("desc");
+  const [sessionsExpanded, setSessionsExpanded] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
   const [newUsername, setNewUsername] = useState("");
@@ -211,6 +212,20 @@ export function AlignmentWorkspace() {
     () => sortSessions(sessions, sessionSort, sessionSortDir),
     [sessions, sessionSort, sessionSortDir],
   );
+
+  function toggleSessionSort(key: SessionSortKey) {
+    if (sessionSort === key) {
+      setSessionSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSessionSort(key);
+      setSessionSortDir(key === "createdAt" ? "desc" : "asc");
+    }
+  }
+
+  function sortMarker(key: SessionSortKey) {
+    if (sessionSort !== key) return "";
+    return sessionSortDir === "asc" ? " ▲" : " ▼";
+  }
 
   useEffect(() => {
     try {
@@ -306,6 +321,7 @@ export function AlignmentWorkspace() {
         if (next) await refreshProgress(next.id);
         else {
           setCompletedVids(new Set());
+          setSessionsExpanded(true);
           setShowCreateForm(true);
         }
       }
@@ -322,8 +338,10 @@ export function AlignmentWorkspace() {
         const open = list.find((s) => s.status === "open") ?? list[0] ?? null;
         return open;
       });
-      if (list.length === 0) setShowCreateForm(true);
-      else {
+      if (list.length === 0) {
+        setSessionsExpanded(true);
+        setShowCreateForm(true);
+      } else {
         const open = list.find((s) => s.status === "open") ?? list[0];
         if (open) await refreshProgress(open.id);
       }
@@ -563,36 +581,35 @@ export function AlignmentWorkspace() {
         </div>
       </section>
 
-      {/* —— Session picker —— */}
+      {/* —— Session table (collapsible) —— */}
       <section className="rounded border border-[#888] bg-white p-3">
-        <div className="mb-2 flex flex-wrap items-end gap-3">
-          <h2 className="text-sm italic text-[#523d02]">Sessions</h2>
-          <label className="text-xs italic">
-            Sort by
-            <select
-              className="ml-1 border border-[#888] bg-white px-2 py-0.5"
-              value={sessionSort}
-              onChange={(e) => setSessionSort(e.target.value as SessionSortKey)}
-            >
-              <option value="label">Name</option>
-              <option value="username">Username</option>
-              <option value="createdAt">Created</option>
-            </select>
-          </label>
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="rounded border border-[#888] bg-[#f8f8f8] px-2 py-0.5 text-xs"
-            onClick={() =>
-              setSessionSortDir((d) => (d === "asc" ? "desc" : "asc"))
-            }
-            title="Toggle sort direction"
+            className="rounded border border-[#888] bg-[#f8f8f8] px-2 py-1 text-sm"
+            onClick={() => setSessionsExpanded((v) => !v)}
+            aria-expanded={sessionsExpanded}
+            title={sessionsExpanded ? "Hide session list" : "Show all sessions"}
           >
-            {sessionSortDir === "asc" ? "Ascending" : "Descending"}
+            {sessionsExpanded ? "▾ Sessions" : "▸ Sessions"}
           </button>
+          {!sessionsExpanded && session && (
+            <div className="min-w-0 flex-1 text-sm">
+              <span className="font-medium">{session.label}</span>
+              <span className="text-[#666]">
+                {" "}
+                · {session.username} · {formatSessionTime(session.createdAt)}
+              </span>
+            </div>
+          )}
+          {!sessionsExpanded && !session && (
+            <span className="text-sm text-[#666]">No session selected</span>
+          )}
           <button
             type="button"
             onClick={() => {
-              setShowCreateForm((v) => !v);
+              setSessionsExpanded(true);
+              setShowCreateForm(true);
               setCreateError("");
             }}
             className="rounded border border-black bg-[#C1FCC1] px-3 py-1 text-sm"
@@ -601,113 +618,163 @@ export function AlignmentWorkspace() {
           </button>
         </div>
 
-        {showCreateForm && (
-          <form
-            className="mb-3 grid gap-2 rounded border border-[#c9a86a] bg-[#fff8e7] p-3 sm:grid-cols-[1fr_1fr_auto]"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void createSession();
-            }}
-          >
-            <label className="text-xs italic">
-              Session name
-              <input
-                className="mt-0.5 w-full border border-[#888] bg-white px-2 py-1 text-sm"
-                value={newSessionName}
-                onChange={(e) => setNewSessionName(e.target.value)}
-                placeholder="Unique name"
-                required
-                maxLength={120}
-                autoFocus
-              />
-            </label>
-            <label className="text-xs italic">
-              Username
-              <input
-                className="mt-0.5 w-full border border-[#888] bg-white px-2 py-1 text-sm"
-                value={newUsername}
-                onChange={(e) => setNewUsername(e.target.value)}
-                placeholder="Your name"
-                required
-                maxLength={80}
-              />
-            </label>
-            <div className="flex items-end gap-2">
-              <button
-                type="submit"
-                disabled={creating}
-                className="rounded border border-black bg-[#C1FCC1] px-3 py-1 text-sm"
+        {sessionsExpanded && (
+          <div className="mt-3">
+            {showCreateForm && (
+              <form
+                className="mb-3 grid gap-2 rounded border border-[#c9a86a] bg-[#fff8e7] p-3 sm:grid-cols-[1fr_1fr_auto]"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void createSession();
+                }}
               >
-                {creating ? "Creating…" : "Create"}
-              </button>
-              {sessions.length > 0 && (
-                <button
-                  type="button"
-                  className="rounded border border-[#888] bg-white px-3 py-1 text-sm"
-                  onClick={() => {
-                    setShowCreateForm(false);
-                    setCreateError("");
-                  }}
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
-            {createError && (
-              <p className="text-xs text-[#a00] sm:col-span-3">{createError}</p>
+                <label className="text-xs italic">
+                  Session name
+                  <input
+                    className="mt-0.5 w-full border border-[#888] bg-white px-2 py-1 text-sm"
+                    value={newSessionName}
+                    onChange={(e) => setNewSessionName(e.target.value)}
+                    placeholder="Unique name"
+                    required
+                    maxLength={120}
+                    autoFocus
+                  />
+                </label>
+                <label className="text-xs italic">
+                  Username
+                  <input
+                    className="mt-0.5 w-full border border-[#888] bg-white px-2 py-1 text-sm"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    placeholder="Your name"
+                    required
+                    maxLength={80}
+                  />
+                </label>
+                <div className="flex items-end gap-2">
+                  <button
+                    type="submit"
+                    disabled={creating}
+                    className="rounded border border-black bg-[#C1FCC1] px-3 py-1 text-sm"
+                  >
+                    {creating ? "Creating…" : "Create"}
+                  </button>
+                  {sessions.length > 0 && (
+                    <button
+                      type="button"
+                      className="rounded border border-[#888] bg-white px-3 py-1 text-sm"
+                      onClick={() => {
+                        setShowCreateForm(false);
+                        setCreateError("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                {createError && (
+                  <p className="text-xs text-[#a00] sm:col-span-3">{createError}</p>
+                )}
+              </form>
             )}
-          </form>
-        )}
 
-        {sortedSessions.length === 0 ? (
-          <p className="text-sm text-[#666]">
-            No sessions yet — create one with a unique name and username.
-          </p>
-        ) : (
-          <ul className="max-h-48 divide-y divide-[#ddd] overflow-y-auto border border-[#ddd]">
-            {sortedSessions.map((s) => {
-              const active = session?.id === s.id;
-              return (
-                <li
-                  key={s.id}
-                  className={`flex flex-wrap items-center gap-2 px-2 py-1.5 text-sm ${
-                    active ? "bg-[#fff3c4]" : "bg-white hover:bg-[#faf6ea]"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() => {
-                      setSession(s);
-                      void refreshProgress(s.id);
-                    }}
-                  >
-                    <span className="font-medium">{s.label}</span>
-                    <span className="text-[#666]">
-                      {" "}
-                      · {s.username} · {formatSessionTime(s.createdAt)}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void exportSession(s)}
-                    className="rounded border border-black bg-white px-2 py-0.5 text-xs"
-                    title={`Export “${s.label}”`}
-                  >
-                    Export
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void deleteSession(s)}
-                    className="rounded border border-[#a00] bg-white px-2 py-0.5 text-xs text-[#a00]"
-                    title={`Delete “${s.label}”`}
-                  >
-                    Delete
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+            {sortedSessions.length === 0 ? (
+              <p className="text-sm text-[#666]">
+                No sessions yet — create one with a unique name and username.
+              </p>
+            ) : (
+              <div className="max-h-56 overflow-auto border border-[#ddd]">
+                <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
+                  <thead className="sticky top-0 bg-[#f3eee0]">
+                    <tr>
+                      <th className="border-b border-[#ddd] px-2 py-1.5 font-normal italic">
+                        <button
+                          type="button"
+                          className="hover:underline"
+                          onClick={() => toggleSessionSort("label")}
+                        >
+                          Name{sortMarker("label")}
+                        </button>
+                      </th>
+                      <th className="border-b border-[#ddd] px-2 py-1.5 font-normal italic">
+                        <button
+                          type="button"
+                          className="hover:underline"
+                          onClick={() => toggleSessionSort("username")}
+                        >
+                          Username{sortMarker("username")}
+                        </button>
+                      </th>
+                      <th className="border-b border-[#ddd] px-2 py-1.5 font-normal italic">
+                        <button
+                          type="button"
+                          className="hover:underline"
+                          onClick={() => toggleSessionSort("createdAt")}
+                        >
+                          Created{sortMarker("createdAt")}
+                        </button>
+                      </th>
+                      <th className="border-b border-[#ddd] px-2 py-1.5 font-normal italic">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedSessions.map((s) => {
+                      const active = session?.id === s.id;
+                      return (
+                        <tr
+                          key={s.id}
+                          className={
+                            active
+                              ? "bg-[#fff3c4]"
+                              : "bg-white hover:bg-[#faf6ea]"
+                          }
+                        >
+                          <td className="border-b border-[#eee] px-2 py-1.5">
+                            <button
+                              type="button"
+                              className="font-medium text-left hover:underline"
+                              onClick={() => {
+                                setSession(s);
+                                void refreshProgress(s.id);
+                              }}
+                            >
+                              {s.label}
+                            </button>
+                          </td>
+                          <td className="border-b border-[#eee] px-2 py-1.5 text-[#444]">
+                            {s.username}
+                          </td>
+                          <td className="border-b border-[#eee] px-2 py-1.5 whitespace-nowrap text-[#444]">
+                            {formatSessionTime(s.createdAt)}
+                          </td>
+                          <td className="border-b border-[#eee] px-2 py-1.5 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => void exportSession(s)}
+                              className="mr-1 rounded border border-black bg-white px-2 py-0.5 text-xs"
+                              title={`Export “${s.label}”`}
+                            >
+                              Export
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteSession(s)}
+                              className="rounded border border-[#a00] bg-white px-2 py-0.5 text-xs text-[#a00]"
+                              title={`Delete “${s.label}”`}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         )}
       </section>
 
