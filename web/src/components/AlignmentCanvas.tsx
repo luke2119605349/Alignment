@@ -391,10 +391,10 @@ export function AlignmentCanvas({
               ))}
             </svg>
 
-            <div className="relative z-[1] space-y-0">
+            <div className="relative z-[1] flex flex-col">
               <div
                 ref={greekGroupRef}
-                className={`inline-flex max-w-none items-stretch rounded border border-dashed ${
+                className={`flex w-max max-w-none items-stretch rounded border border-dashed ${
                   dragging === "greek"
                     ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
                     : "border-[#c9a86a]/70 bg-[#EAC17D]/25 hover:border-[#a67c2a] hover:bg-[#EAC17D]/40"
@@ -450,7 +450,7 @@ export function AlignmentCanvas({
 
               <div
                 ref={latinGroupRef}
-                className={`inline-flex max-w-none items-stretch rounded border border-dashed ${
+                className={`flex w-max max-w-none items-stretch rounded border border-dashed ${
                   dragging === "latin"
                     ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
                     : "border-[#888]/70 bg-white/80 hover:border-[#555] hover:bg-[#f3f3f3]"
