@@ -124,11 +124,11 @@ function ProgressBar({ label, pct, detail }: { label: string; pct: number; detai
   const color = progressColor(pct);
   return (
     <div className="min-w-[10rem] flex-1">
-      <div className="mb-0.5 flex justify-between text-xs">
+      <div className="mb-1 flex justify-between text-xs">
         <span className="italic">{label}</span>
         <span>{Math.round(pct * 100)}% · {detail}</span>
       </div>
-      <div className="h-2 overflow-hidden rounded border border-[#888] bg-[#eee]">
+      <div className="h-2.5 overflow-hidden rounded border-2 border-[#888] bg-[#eee]">
         <div
           className="h-full transition-[width] duration-300"
           style={{ width: `${Math.round(pct * 100)}%`, background: color }}
@@ -558,11 +558,11 @@ export function AlignmentWorkspace() {
   const verseCount = book.verseCounts[chapter - 1] ?? 1;
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3">
+    <div className="flex w-full min-w-0 flex-col gap-5">
       {/* —— Progress (always above the workspace) —— */}
-      <section className="rounded border border-[#c9a86a] bg-[#fff8e7] p-3">
-        <h2 className="mb-2 text-sm italic text-[#523d02]">Progress</h2>
-        <div className="flex flex-wrap gap-3">
+      <section className="rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-4">
+        <h2 className="mb-3 text-sm italic text-[#523d02]">Progress</h2>
+        <div className="flex flex-wrap gap-4">
           <ProgressBar
             label="Chapter verses"
             pct={chapterProg.pct}
@@ -582,11 +582,11 @@ export function AlignmentWorkspace() {
       </section>
 
       {/* —— Session table (collapsible) —— */}
-      <section className="rounded border border-[#888] bg-white p-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <section className="rounded-md border-2 border-[#888] bg-white p-4">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            className="rounded border border-[#888] bg-[#f8f8f8] px-2 py-1 text-sm"
+            className="rounded border-2 border-[#888] bg-[#f8f8f8] px-2.5 py-1 text-sm"
             onClick={() => setSessionsExpanded((v) => !v)}
             aria-expanded={sessionsExpanded}
             title={sessionsExpanded ? "Hide session list" : "Show all sessions"}
@@ -612,17 +612,17 @@ export function AlignmentWorkspace() {
               setShowCreateForm(true);
               setCreateError("");
             }}
-            className="rounded border border-black bg-[#C1FCC1] px-3 py-1 text-sm"
+            className="rounded border-2 border-black bg-[#C1FCC1] px-3 py-1.5 text-sm"
           >
             New session
           </button>
         </div>
 
         {sessionsExpanded && (
-          <div className="mt-3">
+          <div className="mt-4">
             {showCreateForm && (
               <form
-                className="mb-3 grid gap-2 rounded border border-[#c9a86a] bg-[#fff8e7] p-3 sm:grid-cols-[1fr_1fr_auto]"
+                className="mb-4 grid gap-3 rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-4 sm:grid-cols-[1fr_1fr_auto]"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void createSession();
@@ -631,7 +631,7 @@ export function AlignmentWorkspace() {
                 <label className="text-xs italic">
                   Session name
                   <input
-                    className="mt-0.5 w-full border border-[#888] bg-white px-2 py-1 text-sm"
+                    className="mt-1 w-full border-2 border-[#888] bg-white px-2 py-1.5 text-sm"
                     value={newSessionName}
                     onChange={(e) => setNewSessionName(e.target.value)}
                     placeholder="Unique name"
@@ -643,7 +643,7 @@ export function AlignmentWorkspace() {
                 <label className="text-xs italic">
                   Username
                   <input
-                    className="mt-0.5 w-full border border-[#888] bg-white px-2 py-1 text-sm"
+                    className="mt-1 w-full border-2 border-[#888] bg-white px-2 py-1.5 text-sm"
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
                     placeholder="Your name"
@@ -655,14 +655,14 @@ export function AlignmentWorkspace() {
                   <button
                     type="submit"
                     disabled={creating}
-                    className="rounded border border-black bg-[#C1FCC1] px-3 py-1 text-sm"
+                    className="rounded border-2 border-black bg-[#C1FCC1] px-3 py-1.5 text-sm"
                   >
                     {creating ? "Creating…" : "Create"}
                   </button>
                   {sessions.length > 0 && (
                     <button
                       type="button"
-                      className="rounded border border-[#888] bg-white px-3 py-1 text-sm"
+                      className="rounded border-2 border-[#888] bg-white px-3 py-1.5 text-sm"
                       onClick={() => {
                         setShowCreateForm(false);
                         setCreateError("");
@@ -683,11 +683,11 @@ export function AlignmentWorkspace() {
                 No sessions yet — create one with a unique name and username.
               </p>
             ) : (
-              <div className="max-h-56 overflow-auto border border-[#ddd]">
+              <div className="max-h-56 overflow-auto rounded-md border-2 border-[#ddd]">
                 <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
                   <thead className="sticky top-0 bg-[#f3eee0]">
                     <tr>
-                      <th className="border-b border-[#ddd] px-2 py-1.5 font-normal italic">
+                      <th className="border-b-2 border-[#ddd] px-3 py-2 font-normal italic">
                         <button
                           type="button"
                           className="hover:underline"
@@ -696,7 +696,7 @@ export function AlignmentWorkspace() {
                           Name{sortMarker("label")}
                         </button>
                       </th>
-                      <th className="border-b border-[#ddd] px-2 py-1.5 font-normal italic">
+                      <th className="border-b-2 border-[#ddd] px-3 py-2 font-normal italic">
                         <button
                           type="button"
                           className="hover:underline"
@@ -705,7 +705,7 @@ export function AlignmentWorkspace() {
                           Username{sortMarker("username")}
                         </button>
                       </th>
-                      <th className="border-b border-[#ddd] px-2 py-1.5 font-normal italic">
+                      <th className="border-b-2 border-[#ddd] px-3 py-2 font-normal italic">
                         <button
                           type="button"
                           className="hover:underline"
@@ -714,7 +714,7 @@ export function AlignmentWorkspace() {
                           Created{sortMarker("createdAt")}
                         </button>
                       </th>
-                      <th className="border-b border-[#ddd] px-2 py-1.5 font-normal italic">
+                      <th className="border-b-2 border-[#ddd] px-3 py-2 font-normal italic">
                         Actions
                       </th>
                     </tr>
@@ -731,7 +731,7 @@ export function AlignmentWorkspace() {
                               : "bg-white hover:bg-[#faf6ea]"
                           }
                         >
-                          <td className="border-b border-[#eee] px-2 py-1.5">
+                          <td className="border-b border-[#eee] px-3 py-2">
                             <button
                               type="button"
                               className="font-medium text-left hover:underline"
@@ -743,17 +743,17 @@ export function AlignmentWorkspace() {
                               {s.label}
                             </button>
                           </td>
-                          <td className="border-b border-[#eee] px-2 py-1.5 text-[#444]">
+                          <td className="border-b border-[#eee] px-3 py-2 text-[#444]">
                             {s.username}
                           </td>
-                          <td className="border-b border-[#eee] px-2 py-1.5 whitespace-nowrap text-[#444]">
+                          <td className="border-b border-[#eee] px-3 py-2 whitespace-nowrap text-[#444]">
                             {formatSessionTime(s.createdAt)}
                           </td>
-                          <td className="border-b border-[#eee] px-2 py-1.5 whitespace-nowrap">
+                          <td className="border-b border-[#eee] px-3 py-2 whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => void exportSession(s)}
-                              className="mr-1 rounded border border-black bg-white px-2 py-0.5 text-xs"
+                              className="mr-2 rounded border-2 border-black bg-white px-2 py-0.5 text-xs"
                               title={`Export “${s.label}”`}
                             >
                               Export
@@ -761,7 +761,7 @@ export function AlignmentWorkspace() {
                             <button
                               type="button"
                               onClick={() => void deleteSession(s)}
-                              className="rounded border border-[#a00] bg-white px-2 py-0.5 text-xs text-[#a00]"
+                              className="rounded border-2 border-[#a00] bg-white px-2 py-0.5 text-xs text-[#a00]"
                               title={`Delete “${s.label}”`}
                             >
                               Delete
@@ -778,9 +778,9 @@ export function AlignmentWorkspace() {
         )}
       </section>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <select
-          className="border border-[#888] px-2 py-1"
+          className="border-2 border-[#888] px-2.5 py-1.5"
           style={{ background: progressColor(bookProg.pct) }}
           value={bookIdx}
           onChange={(e) => {
@@ -799,7 +799,7 @@ export function AlignmentWorkspace() {
           })}
         </select>
         <select
-          className="border border-[#888] px-2 py-1"
+          className="border-2 border-[#888] px-2.5 py-1.5"
           style={{ background: progressColor(chapterProg.pct) }}
           value={chapter}
           onChange={(e) => {
@@ -824,7 +824,7 @@ export function AlignmentWorkspace() {
         </select>
         <span>:</span>
         <select
-          className="border border-[#888] px-2 py-1"
+          className="border-2 border-[#888] px-2.5 py-1.5"
           style={{
             background: progressColor(
               completed.has(vidFor(book.num, chapter, verse)) ? 1 : 0,
@@ -853,11 +853,11 @@ export function AlignmentWorkspace() {
         </span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-4">
         <label className="text-sm italic">
           Default alignment
           <select
-            className="ml-2 min-w-[14rem] border border-[#888] bg-white px-2 py-1"
+            className="ml-2 min-w-[14rem] border-2 border-[#888] bg-white px-2.5 py-1.5"
             value={alignmentSource}
             onChange={(e) => onSourceChange(e.target.value)}
           >
@@ -901,7 +901,7 @@ export function AlignmentWorkspace() {
 
       {/* Near-full-width strip with a little page-edge margin; H-scroll only here */}
       {session && (
-        <section className="-mx-2 w-[calc(100%+1rem)] min-w-0">
+        <section className="-mx-3 w-[calc(100%+1.5rem)] min-w-0">
           <AlignmentCanvas
             greek={greek}
             latinEntries={latinEntries}
@@ -912,8 +912,8 @@ export function AlignmentWorkspace() {
           />
 
           {showDiff && liveDiff && (
-            <div className="mt-3 rounded border border-[#888] bg-white p-3 text-sm">
-              <h2 className="mb-1 text-sm italic">Diff vs {alignmentSource} baseline</h2>
+            <div className="mt-4 rounded-md border-2 border-[#888] bg-white p-4 text-sm">
+              <h2 className="mb-2 text-sm italic">Diff vs {alignmentSource} baseline</h2>
               <p>
                 Unchanged: {liveDiff.unchanged} · Added: {liveDiff.added.length} ·
                 Removed: {liveDiff.removed.length}
@@ -921,13 +921,13 @@ export function AlignmentWorkspace() {
             </div>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               ref={submitBtnRef}
               type="button"
               onClick={() => void submitAndProceed()}
               disabled={loading || saving}
-              className="rounded border border-black bg-[#C1FCC1] px-4 py-2 text-sm font-medium"
+              className="rounded border-2 border-black bg-[#C1FCC1] px-4 py-2 text-sm font-medium"
             >
               Submit and Proceed
             </button>
@@ -935,14 +935,14 @@ export function AlignmentWorkspace() {
               type="button"
               onClick={() => void persistAlignment({ submit: false })}
               disabled={loading || saving}
-              className="rounded border border-black bg-white px-3 py-2 text-sm"
+              className="rounded border-2 border-black bg-white px-3 py-2 text-sm"
             >
               Save draft
             </button>
             <button
               type="button"
               onClick={() => void exportSession(session)}
-              className="rounded border border-black bg-white px-3 py-2 text-sm"
+              className="rounded border-2 border-black bg-white px-3 py-2 text-sm"
               title="Export the currently selected session"
             >
               Export Current Session
@@ -950,21 +950,21 @@ export function AlignmentWorkspace() {
             <button
               type="button"
               onClick={resetToBaseline}
-              className="rounded border border-black bg-[#FAD780] px-3 py-2 text-sm"
+              className="rounded border-2 border-black bg-[#FAD780] px-3 py-2 text-sm"
             >
               Restore default indices
             </button>
             <button
               type="button"
               onClick={clearLinks}
-              className="rounded border border-black bg-white px-3 py-2 text-sm"
+              className="rounded border-2 border-black bg-white px-3 py-2 text-sm"
             >
               Clear links
             </button>
             <button
               type="button"
               onClick={() => setShowJson((v) => !v)}
-              className="rounded border border-black bg-white px-3 py-2 text-sm"
+              className="rounded border-2 border-black bg-white px-3 py-2 text-sm"
             >
               {showJson ? "Hide" : "Show"} JSON
             </button>
@@ -973,7 +973,7 @@ export function AlignmentWorkspace() {
 
           {showJson && (
             <textarea
-              className="mt-3 w-full min-h-[8rem] border border-[#888] p-2 font-mono text-xs"
+              className="mt-4 w-full min-h-[8rem] border-2 border-[#888] p-3 font-mono text-xs"
               readOnly
               value={JSON.stringify(
                 {

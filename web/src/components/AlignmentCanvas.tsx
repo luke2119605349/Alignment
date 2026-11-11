@@ -30,12 +30,12 @@ type Line = {
   invalid?: boolean;
 };
 
-const MIN_GAP = 4;
-/** Cap so a short row does not become absurdly sparse when matching the other. */
-const MAX_GAP = 28;
-const PAD_X = 12;
-const DEFAULT_HEIGHT = 280;
-const MIN_HEIGHT = 160;
+const MIN_GAP = 6;
+/** Soft stretch toward the other row only — never past own content by much. */
+const MAX_GAP = 16;
+const PAD_X = 20;
+const DEFAULT_HEIGHT = 300;
+const MIN_HEIGHT = 180;
 
 function parseIdxs(raw: string, greekCount: number) {
   const idxs: number[] = [];
@@ -235,26 +235,17 @@ export function AlignmentCanvas({
 
     const g = measureRow(greekRow);
     const l = measureRow(latinRow);
-    const viewport = Math.max(0, scroll.clientWidth - PAD_X * 2);
-    const pairWidth = Math.max(g.contentWidth, l.contentWidth);
-    // Grow gaps to fill the viewport only when both rows already fit
-    const stretchTarget = pairWidth <= viewport ? viewport : pairWidth;
+    // Each block hugs its own children — never stretch to the other row.
+    fitRow(greekRow, g, g.contentWidth);
+    fitRow(latinRow, l, l.contentWidth);
+    greekGroup.style.marginBottom = "4.5rem";
 
-    const gUsed = fitRow(greekRow, g, stretchTarget);
-    const lUsed = fitRow(latinRow, l, stretchTarget);
-    const rowSpan = Math.max(gUsed, lUsed);
-    greekRow.style.width = `${rowSpan}px`;
-    latinRow.style.width = `${rowSpan}px`;
-    greekGroup.style.marginBottom = `${Math.max(52, Math.min(88, rowSpan * 0.04))}px`;
-
-    // Include drag-handle chrome in scroll metrics
     void greekGroup.offsetWidth;
     const gBlock = greekGroup.offsetWidth;
     const lBlock = latinGroup.offsetWidth;
-    const blockSpan = Math.max(gBlock, lBlock);
 
     const leftPad = Math.max(0, -gOff, -lOff);
-    const rightEdge = Math.max(blockSpan + gOff, blockSpan + lOff, blockSpan);
+    const rightEdge = Math.max(gBlock + gOff, lBlock + lOff, gBlock, lBlock);
     const contentWidth = leftPad + rightEdge + PAD_X * 2;
     const fits = contentWidth <= scroll.clientWidth + 0.5;
 
@@ -350,14 +341,14 @@ export function AlignmentCanvas({
 
   return (
     <div className="alignment-workspace w-full min-w-0">
-      <p className="mb-1 px-1 text-[0.7rem] text-[#666]">
+      <p className="mb-2 px-2 text-[0.7rem] text-[#666]">
         Use the <span className="font-medium text-[#523d02]">⇄ Drag</span>{" "}
         handle on each row to slide Greek or Latin sideways and untangle
         overlapping links. Resize from the bottom edge.
       </p>
       <div
         ref={shellRef}
-        className="relative flex w-full flex-col border-y border-[#888] bg-[#fafafa]"
+        className="relative flex w-full flex-col rounded border-2 border-[#888] bg-[#fafafa]"
         style={{ height: shellHeight }}
       >
         <div
@@ -368,7 +359,7 @@ export function AlignmentCanvas({
         >
           <div
             ref={canvasRef}
-            className="relative box-border py-4"
+            className="relative box-border py-6"
             style={{ minWidth: "100%" }}
           >
             <svg
@@ -391,13 +382,13 @@ export function AlignmentCanvas({
               ))}
             </svg>
 
-            <div className="relative z-[1] flex flex-col">
+            <div className="relative z-[1] flex w-max flex-col items-start gap-0">
               <div
                 ref={greekGroupRef}
-                className={`flex w-max max-w-none items-stretch rounded border border-dashed ${
+                className={`flex w-fit max-w-none items-stretch rounded-md border-2 border-dashed ${
                   dragging === "greek"
                     ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
-                    : "border-[#c9a86a]/70 bg-[#EAC17D]/25 hover:border-[#a67c2a] hover:bg-[#EAC17D]/40"
+                    : "border-[#c9a86a] bg-[#EAC17D]/25 hover:border-[#a67c2a] hover:bg-[#EAC17D]/40"
                 }`}
                 style={{ touchAction: "none" }}
                 onPointerDown={(e) => onRowPointerDown("greek", e)}
@@ -409,7 +400,7 @@ export function AlignmentCanvas({
                 aria-label="Greek words — drag sideways to reposition"
               >
                 <div
-                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r border-[#c9a86a]/80 bg-[#EAC17D] px-1.5 py-1 text-[#523d02] select-none active:cursor-grabbing"
+                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r-2 border-[#c9a86a] bg-[#EAC17D] px-2 py-1.5 text-[#523d02] select-none active:cursor-grabbing"
                   aria-hidden
                 >
                   <span className="text-[0.65rem] font-semibold tracking-wide">
@@ -424,7 +415,7 @@ export function AlignmentCanvas({
                 </div>
                 <div
                   ref={greekRowRef}
-                  className="greek-row flex cursor-grab flex-nowrap items-end px-1 py-1 active:cursor-grabbing"
+                  className="greek-row flex w-fit cursor-grab flex-nowrap items-end px-1.5 py-1.5 active:cursor-grabbing"
                   style={{ gap: MIN_GAP }}
                 >
                   {greek.map((w, i) => (
@@ -435,9 +426,9 @@ export function AlignmentCanvas({
                       }}
                       className="flex shrink-0 flex-col items-center"
                     >
-                      <div className="mb-0.5 text-[0.75rem] text-[#555]">{i}</div>
+                      <div className="mb-1 text-[0.75rem] text-[#555]">{i}</div>
                       <div
-                        className={`greek-word min-w-[2.75rem] border border-[#c9a86a] bg-[#EAC17D] px-1.5 py-1 text-center font-serif text-[0.95rem] ${
+                        className={`greek-word min-w-[2.75rem] border-2 border-[#c9a86a] bg-[#EAC17D] px-1.5 py-1 text-center font-serif text-[0.95rem] ${
                           alignedGreek.has(i) ? "" : "border-dashed opacity-75"
                         }`}
                       >
@@ -450,10 +441,10 @@ export function AlignmentCanvas({
 
               <div
                 ref={latinGroupRef}
-                className={`flex w-max max-w-none items-stretch rounded border border-dashed ${
+                className={`flex w-fit max-w-none items-stretch rounded-md border-2 border-dashed ${
                   dragging === "latin"
                     ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
-                    : "border-[#888]/70 bg-white/80 hover:border-[#555] hover:bg-[#f3f3f3]"
+                    : "border-[#888] bg-white/80 hover:border-[#555] hover:bg-[#f3f3f3]"
                 }`}
                 style={{ touchAction: "none" }}
                 onPointerDown={(e) => onRowPointerDown("latin", e)}
@@ -465,7 +456,7 @@ export function AlignmentCanvas({
                 aria-label="Latin words — drag sideways to reposition"
               >
                 <div
-                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r border-[#aaa] bg-[#e8e8e8] px-1.5 py-1 text-[#333] select-none active:cursor-grabbing"
+                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r-2 border-[#aaa] bg-[#e8e8e8] px-2 py-1.5 text-[#333] select-none active:cursor-grabbing"
                   aria-hidden
                 >
                   <span className="text-[0.65rem] font-semibold tracking-wide">
@@ -480,7 +471,7 @@ export function AlignmentCanvas({
                 </div>
                 <div
                   ref={latinRowRef}
-                  className="latin-row flex cursor-grab flex-nowrap items-start px-1 py-1 active:cursor-grabbing"
+                  className="latin-row flex w-fit cursor-grab flex-nowrap items-start px-1.5 py-1.5 active:cursor-grabbing"
                   style={{ gap: MIN_GAP }}
                 >
                   {latinEntries.map((entry, li) => {
@@ -494,14 +485,14 @@ export function AlignmentCanvas({
                         ref={(el) => {
                           latinRefs.current[li] = el;
                         }}
-                        className="flex shrink-0 flex-col items-center border border-[#aaa] bg-white px-1.5 py-1"
+                        className="flex shrink-0 flex-col items-center border-2 border-[#aaa] bg-white px-1.5 py-1.5"
                       >
                         <div className="min-w-[2.75rem] px-0.5 pb-2 text-center font-serif text-[0.95rem]">
                           {entry.latinWord}
                         </div>
                         {editable ? (
                           <input
-                            className={`w-8 cursor-text border text-center text-xs ${
+                            className={`w-8 cursor-text border-2 text-center text-xs ${
                               invalid
                                 ? "border-[#cc0000] bg-[#fff0f0]"
                                 : "border-[#666] bg-white"
@@ -548,7 +539,7 @@ export function AlignmentCanvas({
         </div>
 
         <div
-          className="flex h-3 shrink-0 cursor-ns-resize items-center justify-center border-t border-[#ccc] bg-[#f0ebe0] hover:bg-[#e8e0d0]"
+          className="flex h-4 shrink-0 cursor-ns-resize items-center justify-center border-t-2 border-[#ccc] bg-[#f0ebe0] hover:bg-[#e8e0d0]"
           onPointerDown={onResizePointerDown}
           onPointerMove={onResizePointerMove}
           onPointerUp={onResizePointerUp}
@@ -558,7 +549,7 @@ export function AlignmentCanvas({
           aria-orientation="horizontal"
           aria-label="Resize alignment workspace"
         >
-          <div className="h-0.5 w-10 rounded bg-[#aaa]" />
+          <div className="h-0.5 w-12 rounded bg-[#aaa]" />
         </div>
       </div>
     </div>
