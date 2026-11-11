@@ -37,7 +37,7 @@ Open http://localhost:3000 — sign in, then use **Align** or **Variants**.
 | Verse catalog | `alignment_feature/files/vref_ids.txt` + `ntvref.txt` |
 | Greek words | `alignment_feature/files/greek.txt` (Classic surfaces; collation IDs derived as `vid` + word#) |
 | Latin words | `alignment_feature/files/latin.txt` |
-| System alignments | `alignment_feature/files/options/aqua_alignment_using_aqua.txt` |
+| System alignments | `web/data/alignments/` (Aqua default + bespoke option files) |
 | Demo MSS ops | Synthetic `DEMO` witness on Matt 1:1 |
 
 Full `base_files/collation.ods` import (Role/Morphology/LexemeId + apparatus) can be layered on later; the seed currently uses the parallel line files which match Classic surfaces.

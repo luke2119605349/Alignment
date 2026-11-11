@@ -9,6 +9,13 @@ import {
   verses,
 } from "@/db/schema";
 import { resolveAlignments } from "@/lib/alignments";
+import {
+  defaultAlignmentSourceId,
+  diffAlignments,
+  entriesFromPairs,
+  listAlignmentSources,
+  loadBaselineForVerse,
+} from "@/lib/aqua_sources";
 import { getVolunteerId } from "@/lib/identity";
 
 type Ctx = { params: Promise<{ vid: string }> };
@@ -24,6 +31,9 @@ export async function GET(req: Request, ctx: Ctx) {
   const sessionId = url.searchParams.get("sessionId");
   const sourceCode = url.searchParams.get("source") ?? "lat";
   const targetCode = url.searchParams.get("target") ?? "grc";
+  const sourceKey =
+    url.searchParams.get("alignmentSource") ?? defaultAlignmentSourceId();
+  const wantDiff = url.searchParams.get("diff") === "1";
 
   const db = getDb();
   const [verse] = await db.select().from(verses).where(eq(verses.vid, vid)).limit(1);
@@ -49,41 +59,69 @@ export async function GET(req: Request, ctx: Ctx) {
       .orderBy(baseWords.wordIndex),
   ]);
 
-  const links = await resolveAlignments(
+  const greek = targetWords.map((w) => w.surface);
+  const latin = sourceWords.map((w) => w.surface);
+
+  const baselineEntries = loadBaselineForVerse(sourceKey, vid, latin);
+
+  const { links, fromSession } = await resolveAlignments(
     verse.id,
     source.id,
     target.id,
     sessionId ? Number(sessionId) : null,
+    sourceKey,
   );
 
-  // Shape for the UI: latin-indexed list like aqua output
-  const byLatin = new Map<number, { greekIdx: number; confidence: number | null }[]>();
-  for (const link of links) {
-    const list = byLatin.get(link.sourceWordIndex) ?? [];
-    list.push({
-      greekIdx: link.targetWordIndex,
-      confidence: link.score,
-    });
-    byLatin.set(link.sourceWordIndex, list);
+  const latinEntries = fromSession
+    ? entriesFromPairs(
+        latin,
+        greek,
+        links.map((l) => ({
+          sourceWordIndex: l.sourceWordIndex,
+          targetWordIndex: l.targetWordIndex,
+          score: l.score,
+        })),
+      )
+    : baselineEntries.length && baselineEntries.some((e) => e.pairs.length)
+      ? baselineEntries
+      : entriesFromPairs(
+          latin,
+          greek,
+          links.map((l) => ({
+            sourceWordIndex: l.sourceWordIndex,
+            targetWordIndex: l.targetWordIndex,
+            score: l.score,
+          })),
+        );
+
+  const alignmentJson = {
+    vid,
+    source: sourceKey,
+    fromSession,
+    list: latinEntries.map((e) => ({
+      latin: e.latinWord,
+      pairs: e.pairs.map((p) => [p.greekIdx, p.greekWord, p.confidence] as const),
+    })),
+  };
+
+  const payload: Record<string, unknown> = {
+    verse,
+    greek,
+    latin,
+    latinEntries,
+    baselineEntries,
+    alignmentSource: sourceKey,
+    sources: listAlignmentSources(),
+    fromSession,
+    alignmentJson,
+    links,
+  };
+
+  if (wantDiff) {
+    payload.diff = diffAlignments(baselineEntries, latinEntries);
   }
 
-  const latinEntries = sourceWords.map((w) => ({
-    latinWord: w.surface,
-    latinIndex: w.wordIndex,
-    pairs: (byLatin.get(w.wordIndex) ?? []).map((p) => ({
-      greekIdx: p.greekIdx,
-      greekWord: targetWords.find((g) => g.wordIndex === p.greekIdx)?.surface ?? "",
-      confidence: p.confidence ?? 0,
-    })),
-  }));
-
-  return NextResponse.json({
-    verse,
-    greek: targetWords.map((w) => w.surface),
-    latin: sourceWords.map((w) => w.surface),
-    latinEntries,
-    links,
-  });
+  return NextResponse.json(payload);
 }
 
 export async function PUT(req: Request, ctx: Ctx) {
@@ -143,12 +181,12 @@ export async function PUT(req: Request, ctx: Ctx) {
           targetWordIndex: p.targetWordIndex,
           score: p.score ?? null,
           sessionId,
+          sourceKey: null,
         })),
       )
       .returning();
   }
 
-  // Soft-supersede prior session rows (marker = first new id, or self for clear)
   if (prior.length) {
     const marker = inserted[0]?.id ?? prior[0].id;
     for (const old of prior) {

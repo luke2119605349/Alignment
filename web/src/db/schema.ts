@@ -130,7 +130,8 @@ export const alignmentSessions = pgTable("alignment_sessions", {
 
 /**
  * Cross-language word links. Target is typically Greek (authoritative spine).
- * sessionId NULL = system/Aqua seed; non-null = volunteer session edit.
+ * sessionId NULL = system seed (Aqua / bespoke / … keyed by sourceKey);
+ * non-null = volunteer session edit (sourceKey unused).
  */
 export const alignments = pgTable("alignments", {
   id: serial("id").primaryKey(),
@@ -146,6 +147,8 @@ export const alignments = pgTable("alignments", {
   sourceWordIndex: integer("source_word_index").notNull(),
   targetWordIndex: integer("target_word_index").notNull(),
   score: real("score"),
+  /** System baseline id, e.g. "aqua" | "bespoke". Null on session rows. */
+  sourceKey: text("source_key"),
   sessionId: integer("session_id").references(() => alignmentSessions.id),
   supersededById: integer("superseded_by_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -156,4 +159,5 @@ export const alignments = pgTable("alignments", {
     t.targetLanguageId,
   ),
   index("alignments_session").on(t.sessionId),
+  index("alignments_source_key").on(t.sourceKey),
 ]);
