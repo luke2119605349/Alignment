@@ -558,11 +558,11 @@ export function AlignmentWorkspace() {
   const verseCount = book.verseCounts[chapter - 1] ?? 1;
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-5">
+    <div className="flex w-full min-w-0 flex-col gap-4">
       {/* —— Progress (always above the workspace) —— */}
-      <section className="rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-4">
-        <h2 className="mb-3 text-sm italic text-[#523d02]">Progress</h2>
-        <div className="flex flex-wrap gap-4">
+      <section className="rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3">
+        <h2 className="mb-2 text-sm italic text-[#523d02]">Progress</h2>
+        <div className="flex flex-wrap gap-3">
           <ProgressBar
             label="Chapter verses"
             pct={chapterProg.pct}
@@ -582,7 +582,7 @@ export function AlignmentWorkspace() {
       </section>
 
       {/* —— Session table (collapsible) —— */}
-      <section className="rounded-md border-2 border-[#888] bg-white p-4">
+      <section className="rounded-md border-2 border-[#888] bg-white p-3">
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -622,7 +622,7 @@ export function AlignmentWorkspace() {
           <div className="mt-4">
             {showCreateForm && (
               <form
-                className="mb-4 grid gap-3 rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-4 sm:grid-cols-[1fr_1fr_auto]"
+                className="mb-3 grid gap-3 rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3 sm:grid-cols-[1fr_1fr_auto]"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void createSession();

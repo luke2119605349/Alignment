@@ -238,7 +238,7 @@ export function AlignmentCanvas({
     // Each block hugs its own children — never stretch to the other row.
     fitRow(greekRow, g, g.contentWidth);
     fitRow(latinRow, l, l.contentWidth);
-    greekGroup.style.marginBottom = "4.5rem";
+    greekGroup.style.marginBottom = "";
 
     void greekGroup.offsetWidth;
     const gBlock = greekGroup.offsetWidth;
@@ -246,13 +246,17 @@ export function AlignmentCanvas({
 
     const leftPad = Math.max(0, -gOff, -lOff);
     const rightEdge = Math.max(gBlock + gOff, lBlock + lOff, gBlock, lBlock);
-    const contentWidth = leftPad + rightEdge + PAD_X * 2;
+    // Extra right slack so the dashed frame doesn't clip the last token
+    const rightSlack = 12;
+    const contentWidth = leftPad + rightEdge + PAD_X * 2 + rightSlack;
     const fits = contentWidth <= scroll.clientWidth + 0.5;
 
+    // Fill the visible workspace height so Latin can sit near the bottom
+    canvas.style.minHeight = `${scroll.clientHeight}px`;
     canvas.style.minWidth = fits ? "100%" : `${Math.ceil(contentWidth)}px`;
     canvas.style.width = fits ? "100%" : `${Math.ceil(contentWidth)}px`;
     canvas.style.paddingLeft = `${PAD_X + leftPad}px`;
-    canvas.style.paddingRight = `${PAD_X}px`;
+    canvas.style.paddingRight = `${PAD_X + rightSlack}px`;
 
     greekGroup.style.transform = `translateX(${gOff}px)`;
     latinGroup.style.transform = `translateX(${lOff}px)`;
@@ -359,7 +363,7 @@ export function AlignmentCanvas({
         >
           <div
             ref={canvasRef}
-            className="relative box-border py-6"
+            className="relative box-border flex min-h-full flex-col py-3"
             style={{ minWidth: "100%" }}
           >
             <svg
@@ -382,7 +386,7 @@ export function AlignmentCanvas({
               ))}
             </svg>
 
-            <div className="relative z-[1] flex w-max flex-col items-start gap-0">
+            <div className="relative z-[1] flex min-h-full w-max flex-col items-start">
               <div
                 ref={greekGroupRef}
                 className={`flex w-fit max-w-none items-stretch rounded-md border-2 border-dashed ${
@@ -400,7 +404,7 @@ export function AlignmentCanvas({
                 aria-label="Greek words — drag sideways to reposition"
               >
                 <div
-                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r-2 border-[#c9a86a] bg-[#EAC17D] px-2 py-1.5 text-[#523d02] select-none active:cursor-grabbing"
+                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r-2 border-[#c9a86a] bg-[#EAC17D] px-2 py-1 text-[#523d02] select-none active:cursor-grabbing"
                   aria-hidden
                 >
                   <span className="text-[0.65rem] font-semibold tracking-wide">
@@ -415,7 +419,7 @@ export function AlignmentCanvas({
                 </div>
                 <div
                   ref={greekRowRef}
-                  className="greek-row flex w-fit cursor-grab flex-nowrap items-end px-1.5 py-1.5 active:cursor-grabbing"
+                  className="greek-row flex w-fit cursor-grab flex-nowrap items-end py-1 pl-1.5 pr-3 active:cursor-grabbing"
                   style={{ gap: MIN_GAP }}
                 >
                   {greek.map((w, i) => (
@@ -426,7 +430,7 @@ export function AlignmentCanvas({
                       }}
                       className="flex shrink-0 flex-col items-center"
                     >
-                      <div className="mb-1 text-[0.75rem] text-[#555]">{i}</div>
+                      <div className="mb-0.5 text-[0.75rem] text-[#555]">{i}</div>
                       <div
                         className={`greek-word min-w-[2.75rem] border-2 border-[#c9a86a] bg-[#EAC17D] px-1.5 py-1 text-center font-serif text-[0.95rem] ${
                           alignedGreek.has(i) ? "" : "border-dashed opacity-75"
@@ -438,6 +442,9 @@ export function AlignmentCanvas({
                   ))}
                 </div>
               </div>
+
+              {/* Grows with workspace height so Latin stays near the bottom */}
+              <div className="min-h-12 w-full flex-1" aria-hidden />
 
               <div
                 ref={latinGroupRef}
@@ -456,7 +463,7 @@ export function AlignmentCanvas({
                 aria-label="Latin words — drag sideways to reposition"
               >
                 <div
-                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r-2 border-[#aaa] bg-[#e8e8e8] px-2 py-1.5 text-[#333] select-none active:cursor-grabbing"
+                  className="flex shrink-0 cursor-grab flex-col items-center justify-center gap-0.5 border-r-2 border-[#aaa] bg-[#e8e8e8] px-2 py-1 text-[#333] select-none active:cursor-grabbing"
                   aria-hidden
                 >
                   <span className="text-[0.65rem] font-semibold tracking-wide">
@@ -471,7 +478,7 @@ export function AlignmentCanvas({
                 </div>
                 <div
                   ref={latinRowRef}
-                  className="latin-row flex w-fit cursor-grab flex-nowrap items-start px-1.5 py-1.5 active:cursor-grabbing"
+                  className="latin-row flex w-fit cursor-grab flex-nowrap items-start py-1 pl-1.5 pr-3 active:cursor-grabbing"
                   style={{ gap: MIN_GAP }}
                 >
                   {latinEntries.map((entry, li) => {
@@ -485,9 +492,9 @@ export function AlignmentCanvas({
                         ref={(el) => {
                           latinRefs.current[li] = el;
                         }}
-                        className="flex shrink-0 flex-col items-center border-2 border-[#aaa] bg-white px-1.5 py-1.5"
+                        className="flex shrink-0 flex-col items-center border-2 border-[#aaa] bg-white px-1.5 py-1"
                       >
-                        <div className="min-w-[2.75rem] px-0.5 pb-2 text-center font-serif text-[0.95rem]">
+                        <div className="min-w-[2.75rem] px-0.5 pb-1.5 text-center font-serif text-[0.95rem]">
                           {entry.latinWord}
                         </div>
                         {editable ? (
