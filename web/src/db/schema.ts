@@ -129,6 +129,30 @@ export const alignmentSessions = pgTable("alignment_sessions", {
 ]);
 
 /**
+ * Verses explicitly submitted in a session (completion tracking).
+ * Distinct from draft autosaves on `alignments`.
+ */
+export const sessionVerseSubmissions = pgTable(
+  "session_verse_submissions",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => alignmentSessions.id),
+    verseId: integer("verse_id")
+      .notNull()
+      .references(() => verses.id),
+    submittedAt: timestamp("submitted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("session_verse_submission_unique").on(t.sessionId, t.verseId),
+    index("session_submissions_session").on(t.sessionId),
+  ],
+);
+
+/**
  * Cross-language word links. Target is typically Greek (authoritative spine).
  * sessionId NULL = system seed (Aqua / bespoke / … keyed by sourceKey);
  * non-null = volunteer session edit (sourceKey unused).

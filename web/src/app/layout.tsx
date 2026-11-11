@@ -51,7 +51,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               </Suspense>
             </nav>
           </header>
-          <main className="flex-1 p-4">{children}</main>
+          <main className="min-w-0 flex-1 overflow-x-hidden p-4">{children}</main>
         </body>
       </html>
     </ClerkProvider>

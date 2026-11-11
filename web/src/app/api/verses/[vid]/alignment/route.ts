@@ -6,6 +6,7 @@ import {
   alignmentSessions,
   baseWords,
   languages,
+  sessionVerseSubmissions,
   verses,
 } from "@/db/schema";
 import { resolveAlignments } from "@/lib/alignments";
@@ -133,6 +134,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   const { vid } = await ctx.params;
   const body = await req.json();
   const sessionId = Number(body.sessionId);
+  const submit = Boolean(body.submit);
   const pairs: { sourceWordIndex: number; targetWordIndex: number; score?: number }[] =
     body.pairs ?? [];
 
@@ -197,5 +199,29 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
   }
 
-  return NextResponse.json({ saved: inserted.length });
+  if (submit) {
+    const existing = await db
+      .select()
+      .from(sessionVerseSubmissions)
+      .where(
+        and(
+          eq(sessionVerseSubmissions.sessionId, sessionId),
+          eq(sessionVerseSubmissions.verseId, verse.id),
+        ),
+      )
+      .limit(1);
+    if (existing.length) {
+      await db
+        .update(sessionVerseSubmissions)
+        .set({ submittedAt: new Date() })
+        .where(eq(sessionVerseSubmissions.id, existing[0].id));
+    } else {
+      await db.insert(sessionVerseSubmissions).values({
+        sessionId,
+        verseId: verse.id,
+      });
+    }
+  }
+
+  return NextResponse.json({ saved: inserted.length, submitted: submit });
 }
