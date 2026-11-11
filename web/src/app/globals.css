@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+:root {
+  --theme: #f5c13c;
+  --manuscript: #eac17d;
+  --tools: #cc8620;
+  --link: #0066cc;
+  --hover: #d3d3d3;
+  --bg: #faf6ea;
+  --ink: #2b2208;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI", "Trebuchet MS", Georgia, serif;
+}
+
+a {
+  color: var(--link);
+}

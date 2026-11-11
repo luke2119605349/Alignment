@@ -113,6 +113,7 @@ def align_latin(b, c, v, vid, eflomal, gsplit, lsplit):
     aqua_alignment_blob = [j for j in res['results'] if j['source'] != j['target']]
 
     aligned = aqua_browser_align(gsplit, lsplit, aqua_alignment_blob)
+    print(aligned)
     # bespoke_aligned = bespoke_align(gsplit, lsplit, aqua_alignment_blob, eflomal)
 
     # Write out in whatever format
