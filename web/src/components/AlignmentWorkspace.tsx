@@ -492,8 +492,13 @@ export function AlignmentWorkspace() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const safe = s.label.replace(/[^\w.-]+/g, "_").slice(0, 48);
-    a.download = `cntr-alignment-${safe || s.id}.json`;
+    const safeName = (s.label || `session-${s.id}`)
+      .normalize("NFKD")
+      .replace(/[^\w\s.-]+/g, "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .slice(0, 64);
+    a.download = `cntr-alignment-${safeName || `session-${s.id}`}.json`;
     a.click();
     URL.revokeObjectURL(url);
     setStatus(`Exported “${s.label}”`);
