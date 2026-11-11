@@ -16,6 +16,7 @@ import {
   chapterCompletion,
   nextVerseRef,
   ntCompletion,
+  ntVerseCompletion,
   progressColor,
   vidFor,
 } from "@/lib/progress";
@@ -207,6 +208,7 @@ export function AlignmentWorkspace() {
     [bookIdx, completed],
   );
   const ntProg = useMemo(() => ntCompletion(completed), [completed]);
+  const verseProg = useMemo(() => ntVerseCompletion(completed), [completed]);
 
   const sortedSessions = useMemo(
     () => sortSessions(sessions, sessionSort, sessionSortDir),
@@ -563,6 +565,11 @@ export function AlignmentWorkspace() {
       <section className="rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3">
         <h2 className="mb-2 text-sm italic text-[#523d02]">Progress</h2>
         <div className="flex flex-wrap gap-3">
+          <ProgressBar
+            label="All verses"
+            pct={verseProg.pct}
+            detail={`${verseProg.done}/${verseProg.total}`}
+          />
           <ProgressBar
             label="Chapter verses"
             pct={chapterProg.pct}

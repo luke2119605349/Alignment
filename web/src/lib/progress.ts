@@ -91,6 +91,30 @@ export function bookCompletion(completed: Set<string>, bookIdx: number) {
 }
 
 /**
+ * Verse-level session progress across the whole NT (not gated by chapter/book).
+ */
+export function ntVerseCompletion(completed: Set<string>) {
+  let total = 0;
+  let done = 0;
+  for (const book of NT_BOOKS) {
+    for (let c = 1; c <= book.verseCounts.length; c += 1) {
+      const verseCount = book.verseCounts[c - 1] ?? 0;
+      total += verseCount;
+      for (let v = 1; v <= verseCount; v += 1) {
+        if (isVerseComplete(completed, book.num, c, v)) done += 1;
+      }
+    }
+  }
+  const pct = total === 0 ? 0 : done / total;
+  return {
+    done,
+    total,
+    pct,
+    complete: done === total && total > 0,
+  };
+}
+
+/**
  * NT / session progress: averages book pcts so any partially finished book
  * marks the whole NT as partial.
  */

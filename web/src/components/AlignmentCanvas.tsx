@@ -251,8 +251,11 @@ export function AlignmentCanvas({
     const contentWidth = leftPad + rightEdge + PAD_X * 2 + rightSlack;
     const fits = contentWidth <= scroll.clientWidth + 0.5;
 
-    // Fill the visible workspace height so Latin can sit near the bottom
-    canvas.style.minHeight = `${scroll.clientHeight}px`;
+    // Exact viewport height (no vertical growth / scroll); Latin pins to bottom via flex
+    const viewH = scroll.clientHeight;
+    canvas.style.height = `${viewH}px`;
+    canvas.style.minHeight = `${viewH}px`;
+    canvas.style.maxHeight = `${viewH}px`;
     canvas.style.minWidth = fits ? "100%" : `${Math.ceil(contentWidth)}px`;
     canvas.style.width = fits ? "100%" : `${Math.ceil(contentWidth)}px`;
     canvas.style.paddingLeft = `${PAD_X + leftPad}px`;
@@ -359,11 +362,11 @@ export function AlignmentCanvas({
           ref={scrollRef}
           className={`min-h-0 flex-1 ${
             needsHScroll ? "overflow-x-auto" : "overflow-x-hidden"
-          } overflow-y-auto`}
+          } overflow-y-hidden`}
         >
           <div
             ref={canvasRef}
-            className="relative box-border flex min-h-full flex-col py-3"
+            className="relative box-border flex h-full flex-col py-3"
             style={{ minWidth: "100%" }}
           >
             <svg
@@ -386,10 +389,10 @@ export function AlignmentCanvas({
               ))}
             </svg>
 
-            <div className="relative z-[1] flex min-h-full w-max flex-col items-start">
+            <div className="relative z-[1] flex h-full min-h-0 w-full flex-col justify-between">
               <div
                 ref={greekGroupRef}
-                className={`flex w-fit max-w-none items-stretch rounded-md border-2 border-dashed ${
+                className={`flex w-fit shrink-0 max-w-none items-stretch rounded-md border-2 border-dashed ${
                   dragging === "greek"
                     ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
                     : "border-[#c9a86a] bg-[#EAC17D]/25 hover:border-[#a67c2a] hover:bg-[#EAC17D]/40"
@@ -443,12 +446,9 @@ export function AlignmentCanvas({
                 </div>
               </div>
 
-              {/* Grows with workspace height so Latin stays near the bottom */}
-              <div className="min-h-12 w-full flex-1" aria-hidden />
-
               <div
                 ref={latinGroupRef}
-                className={`flex w-fit max-w-none items-stretch rounded-md border-2 border-dashed ${
+                className={`flex w-fit shrink-0 max-w-none items-stretch rounded-md border-2 border-dashed ${
                   dragging === "latin"
                     ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
                     : "border-[#888] bg-white/80 hover:border-[#555] hover:bg-[#f3f3f3]"
