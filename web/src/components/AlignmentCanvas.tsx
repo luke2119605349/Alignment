@@ -33,7 +33,12 @@ type Line = {
 const MIN_GAP = 6;
 /** Soft stretch toward the other row only — never past own content by much. */
 const MAX_GAP = 16;
-const PAD_X = 20;
+/** Horizontal inset inside the canvas (keeps tokens clear of the shell edge). */
+const PAD_X = 36;
+/** Extra room past the rightmost/leftmost transformed block so borders aren't clipped. */
+const EDGE_SLACK = 48;
+/** Shell `border-2` on both sides (Tailwind border-box). */
+const SHELL_BORDER_X = 4;
 const DEFAULT_HEIGHT = 300;
 const MIN_HEIGHT = 180;
 
@@ -271,35 +276,41 @@ export function AlignmentCanvas({
     const gBlock = greekGroup.offsetWidth;
     const lBlock = latinGroup.offsetWidth;
 
-    const leftPad = Math.max(0, -gOff, -lOff);
+    // Negative translates need matching left padding so the leftmost token is
+    // still reachable when the scrollport overflows.
+    const leftShift = Math.max(0, -gOff, -lOff);
     const rightEdge = Math.max(gBlock + gOff, lBlock + lOff, gBlock, lBlock);
-    // Extra right slack so frames don't clip the last token
-    const rightSlack = 28;
-    const contentWidth = leftPad + rightEdge + PAD_X * 2 + rightSlack;
+    const padLeft = PAD_X + EDGE_SLACK + leftShift;
+    const padRight = PAD_X + EDGE_SLACK;
+    // box-border width includes padding; content box covers `rightEdge`.
+    const sized = Math.ceil(padLeft + rightEdge + padRight);
 
     // Exact viewport height (no vertical growth / scroll); Latin pins to bottom via flex
     const viewH = scroll.clientHeight;
     canvas.style.height = `${viewH}px`;
     canvas.style.minHeight = `${viewH}px`;
     canvas.style.maxHeight = `${viewH}px`;
-    // Canvas is content-sized; shell stays full width so measurement stays stable.
-    // Narrow verses center via flex on the scrollport; wide ones scroll horizontally.
-    const sized = Math.ceil(contentWidth);
     canvas.style.minWidth = `${sized}px`;
     canvas.style.width = `${sized}px`;
-    canvas.style.paddingLeft = `${PAD_X + leftPad}px`;
-    canvas.style.paddingRight = `${PAD_X + rightSlack}px`;
+    canvas.style.paddingLeft = `${padLeft}px`;
+    canvas.style.paddingRight = `${padRight}px`;
 
     greekGroup.style.transform = `translateX(${gOff}px)`;
     latinGroup.style.transform = `translateX(${lOff}px)`;
 
-    // Hug content when it fits the outer workspace; otherwise fill available width.
-    const available =
-      shell.parentElement?.clientWidth ?? shell.clientWidth;
-    if (sized <= available + 0.5) {
-      shell.style.width = `${sized}px`;
+    // Parent width minus shell borders = max canvas width before a scrollbar appears.
+    const parentW = shell.parentElement?.clientWidth ?? shell.clientWidth;
+    const maxInner = Math.max(0, parentW - SHELL_BORDER_X);
+    const fits = sized <= maxInner + 0.5;
+    if (fits) {
+      // border-box: outer width includes borders so the inner area equals `sized`.
+      shell.style.width = `${sized + SHELL_BORDER_X}px`;
+      // Center only when content fits — justify-center + overflow clips the left side.
+      scroll.style.justifyContent = "center";
     } else {
       shell.style.width = "100%";
+      scroll.style.justifyContent = "flex-start";
+      scroll.scrollLeft = Math.max(0, scroll.scrollLeft);
     }
 
     requestAnimationFrame(() => {
@@ -418,7 +429,7 @@ export function AlignmentCanvas({
         </div>
         <div
           ref={scrollRef}
-          className="flex min-h-0 flex-1 justify-center overflow-x-auto overflow-y-hidden"
+          className="flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden"
         >
           <div
             ref={canvasRef}
