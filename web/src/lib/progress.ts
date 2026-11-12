@@ -90,21 +90,27 @@ export function bookCompletion(completed: Set<string>, bookIdx: number) {
   };
 }
 
+/** Cached once — full NT verse count (avoids O(NT) scans on every progress paint). */
+let NT_VERSE_TOTAL: number | null = null;
+
+export function ntVerseTotal() {
+  if (NT_VERSE_TOTAL == null) {
+    let total = 0;
+    for (const book of NT_BOOKS) {
+      for (const verseCount of book.verseCounts) total += verseCount;
+    }
+    NT_VERSE_TOTAL = total;
+  }
+  return NT_VERSE_TOTAL;
+}
+
 /**
  * Verse-level session progress across the whole NT (not gated by chapter/book).
+ * `completed` is the set of submitted vids for a session.
  */
 export function ntVerseCompletion(completed: Set<string>) {
-  let total = 0;
-  let done = 0;
-  for (const book of NT_BOOKS) {
-    for (let c = 1; c <= book.verseCounts.length; c += 1) {
-      const verseCount = book.verseCounts[c - 1] ?? 0;
-      total += verseCount;
-      for (let v = 1; v <= verseCount; v += 1) {
-        if (isVerseComplete(completed, book.num, c, v)) done += 1;
-      }
-    }
-  }
+  const total = ntVerseTotal();
+  const done = completed.size;
   const pct = total === 0 ? 0 : done / total;
   return {
     done,

@@ -1201,7 +1201,7 @@ export function AlignmentWorkspace() {
         </span>
       </div>
 
-      {session && (
+      {session && !sessionsExpanded && (
         <section className="w-full min-w-0">
           <AlignmentCanvas
             greek={greek}

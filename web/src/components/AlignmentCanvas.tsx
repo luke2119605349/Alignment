@@ -137,15 +137,14 @@ export function AlignmentCanvas({
   const resizeRef = useRef<{ startY: number; originH: number } | null>(null);
   const offsetsRef = useRef({ greek: 0, latin: 0 });
 
-  const [lines, setLines] = useState<Line[]>([]);
-  const [svgSize, setSvgSize] = useState({ w: 0, h: 0 });
+  const svgRef = useRef<SVGSVGElement>(null);
   const [greekOffset, setGreekOffset] = useState(0);
   const [latinOffset, setLatinOffset] = useState(0);
   const [dragging, setDragging] = useState<DragKind | null>(null);
   const [shellHeight, setShellHeight] = useState(DEFAULT_HEIGHT);
-  /** True while applying layout styles — skip ResizeObserver to avoid update loops. */
-  const layoutBusyRef = useRef(false);
-
+  /** Latest props for imperative draw (avoids effect churn from callback identity). */
+  const propsRef = useRef({ greek, latinEntries, edits, diffRemoved });
+  propsRef.current = { greek, latinEntries, edits, diffRemoved };
   offsetsRef.current = { greek: greekOffset, latin: latinOffset };
 
   const alignedGreek = useMemo(() => {
@@ -158,43 +157,43 @@ export function AlignmentCanvas({
     return set;
   }, [edits, greek.length, latinEntries]);
 
-  // Reset row shifts when the verse / token set changes (length/identity-friendly deps)
+  // Reset row shifts when the verse / token set changes
   const latinSig = `${latinEntries.length}:${latinEntries[0]?.latinWord ?? ""}:${latinEntries[latinEntries.length - 1]?.latinWord ?? ""}`;
   useEffect(() => {
-    setGreekOffset(0);
-    setLatinOffset(0);
+    setGreekOffset((o) => (o === 0 ? o : 0));
+    setLatinOffset((o) => (o === 0 ? o : 0));
   }, [greek.length, latinSig]);
 
+  /** Imperative SVG paint — never setState, so parent re-renders cannot loop. */
   const drawLines = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const svg = svgRef.current;
+    if (!canvas || !svg) return;
+    const { greek: gWords, latinEntries: entries, edits: eMap, diffRemoved: removed } =
+      propsRef.current;
     const crect = canvas.getBoundingClientRect();
-    const nextW = Math.max(canvas.scrollWidth, crect.width);
-    const nextH = Math.max(canvas.scrollHeight, crect.height);
-    setSvgSize((prev) =>
-      prev.w === nextW && prev.h === nextH ? prev : { w: nextW, h: nextH },
-    );
+    const nextW = Math.round(Math.max(canvas.scrollWidth, crect.width));
+    const nextH = Math.round(Math.max(canvas.scrollHeight, crect.height));
+    svg.setAttribute("width", String(nextW || 1));
+    svg.setAttribute("height", String(nextH || 1));
 
     const next: Line[] = [];
-
-    latinEntries.forEach((entry, li) => {
+    entries.forEach((entry, li) => {
       const latinEl = latinRefs.current[li];
       if (!latinEl) return;
       const raw =
-        edits[entry.latinIndex] ??
-        entry.pairs.map((p) => p.greekIdx).join(",");
-      const { idxs, invalid } = parseIdxs(raw, greek.length);
+        eMap[entry.latinIndex] ?? entry.pairs.map((p) => p.greekIdx).join(",");
+      const { idxs, invalid } = parseIdxs(raw, gWords.length);
       const lrect = latinEl.getBoundingClientRect();
-      const x1 = lrect.left + lrect.width / 2 - crect.left;
-      const y1 = lrect.top - crect.top;
-
+      const x1 = Math.round(lrect.left + lrect.width / 2 - crect.left);
+      const y1 = Math.round(lrect.top - crect.top);
       idxs.forEach((gIdx) => {
         const gEl = greekRefs.current[gIdx]?.querySelector(".greek-word");
         if (!gEl) return;
         const grect = gEl.getBoundingClientRect();
         next.push({
-          x1: Math.round(x1),
-          y1: Math.round(y1),
+          x1,
+          y1,
           x2: Math.round(grect.left + grect.width / 2 - crect.left),
           y2: Math.round(grect.bottom - crect.top),
           invalid,
@@ -202,8 +201,8 @@ export function AlignmentCanvas({
       });
     });
 
-    for (const rem of diffRemoved) {
-      const li = latinEntries.findIndex((e) => e.latinIndex === rem.latinIndex);
+    for (const rem of removed) {
+      const li = entries.findIndex((e) => e.latinIndex === rem.latinIndex);
       const lEl = latinRefs.current[li];
       const gEl = greekRefs.current[rem.greekIdx]?.querySelector(".greek-word");
       if (!lEl || !gEl) continue;
@@ -218,23 +217,21 @@ export function AlignmentCanvas({
       });
     }
 
-    setLines((prev) => {
-      if (
-        prev.length === next.length &&
-        prev.every(
-          (ln, i) =>
-            ln.x1 === next[i].x1 &&
-            ln.y1 === next[i].y1 &&
-            ln.x2 === next[i].x2 &&
-            ln.y2 === next[i].y2 &&
-            ln.invalid === next[i].invalid,
-        )
-      ) {
-        return prev;
-      }
-      return next;
-    });
-  }, [diffRemoved, edits, greek.length, latinEntries]);
+    // Rebuild line nodes without React state.
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const ns = "http://www.w3.org/2000/svg";
+    for (const ln of next) {
+      const el = document.createElementNS(ns, "line");
+      el.setAttribute("x1", String(ln.x1));
+      el.setAttribute("y1", String(ln.y1));
+      el.setAttribute("x2", String(ln.x2));
+      el.setAttribute("y2", String(ln.y2));
+      el.setAttribute("stroke", ln.invalid ? "#cc0000" : "#0066CC");
+      el.setAttribute("stroke-width", "2");
+      if (ln.invalid) el.setAttribute("stroke-dasharray", "4 3");
+      svg.appendChild(el);
+    }
+  }, []);
 
   const layoutRows = useCallback(() => {
     const shell = shellRef.current;
@@ -256,10 +253,8 @@ export function AlignmentCanvas({
       return;
     }
 
-    layoutBusyRef.current = true;
     const { greek: gOff, latin: lOff } = offsetsRef.current;
 
-    // Measure natural packed widths (ignore current translate)
     greekRow.style.width = "";
     greekRow.style.gap = `${MIN_GAP}px`;
     greekRow.style.justifyContent = "flex-start";
@@ -271,7 +266,6 @@ export function AlignmentCanvas({
 
     const g = measureRow(greekRow);
     const l = measureRow(latinRow);
-    // Each block hugs its own children — never stretch to the other row.
     fitRow(greekRow, g, g.contentWidth);
     fitRow(latinRow, l, l.contentWidth);
     greekGroup.style.marginBottom = "";
@@ -280,16 +274,12 @@ export function AlignmentCanvas({
     const gBlock = greekGroup.offsetWidth;
     const lBlock = latinGroup.offsetWidth;
 
-    // Negative translates need matching left padding so the leftmost token is
-    // still reachable when the scrollport overflows.
     const leftShift = Math.max(0, -gOff, -lOff);
     const rightEdge = Math.max(gBlock + gOff, lBlock + lOff, gBlock, lBlock);
     const padLeft = PAD_X + EDGE_SLACK + leftShift;
     const padRight = PAD_X + EDGE_SLACK;
-    // box-border width includes padding; content box covers `rightEdge`.
     const sized = Math.ceil(padLeft + rightEdge + padRight);
 
-    // Exact viewport height (no vertical growth / scroll); Latin pins to bottom via flex
     const viewH = scroll.clientHeight;
     canvas.style.height = `${viewH}px`;
     canvas.style.minHeight = `${viewH}px`;
@@ -302,24 +292,14 @@ export function AlignmentCanvas({
     greekGroup.style.transform = `translateX(${gOff}px)`;
     latinGroup.style.transform = `translateX(${lOff}px)`;
 
-    // Parent width minus shell borders = max canvas width before a scrollbar appears.
     const parentW = shell.parentElement?.clientWidth ?? shell.clientWidth;
     const maxInner = Math.max(0, parentW - SHELL_BORDER_X);
     const fits = sized <= maxInner + 0.5;
-    if (fits) {
-      // border-box: outer width includes borders so the inner area equals `sized`.
-      shell.style.width = `${sized + SHELL_BORDER_X}px`;
-      // Center only when content fits — justify-center + overflow clips the left side.
-      scroll.style.justifyContent = "center";
-    } else {
-      shell.style.width = "100%";
-      scroll.style.justifyContent = "flex-start";
-      scroll.scrollLeft = Math.max(0, scroll.scrollLeft);
+    const nextShellWidth = fits ? `${sized + SHELL_BORDER_X}px` : "100%";
+    if (shell.style.width !== nextShellWidth) {
+      shell.style.width = nextShellWidth;
     }
-
-    requestAnimationFrame(() => {
-      layoutBusyRef.current = false;
-    });
+    scroll.style.justifyContent = fits ? "center" : "flex-start";
   }, []);
 
   const redraw = useCallback(() => {
@@ -327,36 +307,30 @@ export function AlignmentCanvas({
     drawLines();
   }, [drawLines, layoutRows]);
 
+  // Layout when verse data / edits / drag offsets / height change — not on every parent render.
   useLayoutEffect(() => {
     redraw();
-  }, [redraw, greekOffset, latinOffset, shellHeight]);
+  }, [
+    redraw,
+    greekOffset,
+    latinOffset,
+    shellHeight,
+    greek.length,
+    latinSig,
+    edits,
+    diffRemoved,
+  ]);
 
   useEffect(() => {
-    const shell = shellRef.current;
     const scroll = scrollRef.current;
-    if (!shell || !scroll) return;
-    // Observe the stable outer wrapper, not the scrollport we resize ourselves.
-    const measureTarget = shell.parentElement ?? shell;
-    let lastW = measureTarget.clientWidth;
-    let lastH = measureTarget.clientHeight;
-    const ro = new ResizeObserver((entries) => {
-      if (layoutBusyRef.current) return;
-      const cr = entries[0]?.contentRect;
-      const w = cr?.width ?? measureTarget.clientWidth;
-      const h = cr?.height ?? measureTarget.clientHeight;
-      // Ignore sub-pixel / self-induced noise from shell width tweaks.
-      if (Math.abs(w - lastW) < 1 && Math.abs(h - lastH) < 1) return;
-      lastW = w;
-      lastH = h;
-      redraw();
-    });
-    ro.observe(measureTarget);
-    scroll.addEventListener("scroll", drawLines, { passive: true });
-    window.addEventListener("resize", redraw);
+    if (!scroll) return;
+    const onScroll = () => drawLines();
+    const onWinResize = () => redraw();
+    scroll.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onWinResize);
     return () => {
-      ro.disconnect();
-      scroll.removeEventListener("scroll", drawLines);
-      window.removeEventListener("resize", redraw);
+      scroll.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onWinResize);
     };
   }, [drawLines, redraw]);
 
@@ -449,24 +423,12 @@ export function AlignmentCanvas({
             className="relative box-border flex h-full flex-col py-3"
           >
             <svg
+              ref={svgRef}
               className="pointer-events-none absolute left-0 top-0 overflow-visible"
-              width={svgSize.w || "100%"}
-              height={svgSize.h || "100%"}
+              width="1"
+              height="1"
               aria-hidden
-            >
-              {lines.map((ln, i) => (
-                <line
-                  key={i}
-                  x1={ln.x1}
-                  y1={ln.y1}
-                  x2={ln.x2}
-                  y2={ln.y2}
-                  stroke={ln.invalid ? "#cc0000" : "#0066CC"}
-                  strokeWidth={2}
-                  strokeDasharray={ln.invalid ? "4 3" : undefined}
-                />
-              ))}
-            </svg>
+            />
 
             <div className="relative z-[1] flex h-full min-h-0 w-full flex-col justify-between">
               <div
