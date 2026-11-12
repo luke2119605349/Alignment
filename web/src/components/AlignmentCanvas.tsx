@@ -135,7 +135,8 @@ export function AlignmentCanvas({
   const [latinOffset, setLatinOffset] = useState(0);
   const [dragging, setDragging] = useState<DragKind | null>(null);
   const [shellHeight, setShellHeight] = useState(DEFAULT_HEIGHT);
-  const [needsHScroll, setNeedsHScroll] = useState(false);
+  /** True while applying layout styles — skip ResizeObserver to avoid update loops. */
+  const layoutBusyRef = useRef(false);
 
   offsetsRef.current = { greek: greekOffset, latin: latinOffset };
 
@@ -159,10 +160,11 @@ export function AlignmentCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const crect = canvas.getBoundingClientRect();
-    setSvgSize({
-      w: Math.max(canvas.scrollWidth, crect.width),
-      h: Math.max(canvas.scrollHeight, crect.height),
-    });
+    const nextW = Math.max(canvas.scrollWidth, crect.width);
+    const nextH = Math.max(canvas.scrollHeight, crect.height);
+    setSvgSize((prev) =>
+      prev.w === nextW && prev.h === nextH ? prev : { w: nextW, h: nextH },
+    );
 
     const next: Line[] = [];
 
@@ -207,20 +209,45 @@ export function AlignmentCanvas({
       });
     }
 
-    setLines(next);
+    setLines((prev) => {
+      if (
+        prev.length === next.length &&
+        prev.every(
+          (ln, i) =>
+            ln.x1 === next[i].x1 &&
+            ln.y1 === next[i].y1 &&
+            ln.x2 === next[i].x2 &&
+            ln.y2 === next[i].y2 &&
+            ln.invalid === next[i].invalid,
+        )
+      ) {
+        return prev;
+      }
+      return next;
+    });
   }, [diffRemoved, edits, greek.length, latinEntries]);
 
   const layoutRows = useCallback(() => {
+    const shell = shellRef.current;
     const scroll = scrollRef.current;
     const canvas = canvasRef.current;
     const greekGroup = greekGroupRef.current;
     const latinGroup = latinGroupRef.current;
     const greekRow = greekRowRef.current;
     const latinRow = latinRowRef.current;
-    if (!scroll || !canvas || !greekGroup || !latinGroup || !greekRow || !latinRow) {
+    if (
+      !shell ||
+      !scroll ||
+      !canvas ||
+      !greekGroup ||
+      !latinGroup ||
+      !greekRow ||
+      !latinRow
+    ) {
       return;
     }
 
+    layoutBusyRef.current = true;
     const { greek: gOff, latin: lOff } = offsetsRef.current;
 
     // Measure natural packed widths (ignore current translate)
@@ -246,18 +273,17 @@ export function AlignmentCanvas({
 
     const leftPad = Math.max(0, -gOff, -lOff);
     const rightEdge = Math.max(gBlock + gOff, lBlock + lOff, gBlock, lBlock);
-    // Extra right slack so w-fit frames don't clip the last token
+    // Extra right slack so frames don't clip the last token
     const rightSlack = 28;
     const contentWidth = leftPad + rightEdge + PAD_X * 2 + rightSlack;
-    const fits = contentWidth <= scroll.clientWidth + 0.5;
 
     // Exact viewport height (no vertical growth / scroll); Latin pins to bottom via flex
     const viewH = scroll.clientHeight;
     canvas.style.height = `${viewH}px`;
     canvas.style.minHeight = `${viewH}px`;
     canvas.style.maxHeight = `${viewH}px`;
-    // When content is narrower than the viewport, size to content so the shell can center.
-    // When wider, keep content width and enable horizontal scroll.
+    // Canvas is content-sized; shell stays full width so measurement stays stable.
+    // Narrow verses center via flex on the scrollport; wide ones scroll horizontally.
     const sized = Math.ceil(contentWidth);
     canvas.style.minWidth = `${sized}px`;
     canvas.style.width = `${sized}px`;
@@ -267,7 +293,18 @@ export function AlignmentCanvas({
     greekGroup.style.transform = `translateX(${gOff}px)`;
     latinGroup.style.transform = `translateX(${lOff}px)`;
 
-    setNeedsHScroll(!fits);
+    // Hug content when it fits the outer workspace; otherwise fill available width.
+    const available =
+      shell.parentElement?.clientWidth ?? shell.clientWidth;
+    if (sized <= available + 0.5) {
+      shell.style.width = `${sized}px`;
+    } else {
+      shell.style.width = "100%";
+    }
+
+    requestAnimationFrame(() => {
+      layoutBusyRef.current = false;
+    });
   }, []);
 
   const redraw = useCallback(() => {
@@ -280,10 +317,16 @@ export function AlignmentCanvas({
   }, [redraw, greekOffset, latinOffset, shellHeight]);
 
   useEffect(() => {
+    const shell = shellRef.current;
     const scroll = scrollRef.current;
-    if (!scroll) return;
-    const ro = new ResizeObserver(() => redraw());
-    ro.observe(scroll);
+    if (!shell || !scroll) return;
+    // Observe the stable outer wrapper, not the scrollport we resize ourselves.
+    const measureTarget = shell.parentElement ?? shell;
+    const ro = new ResizeObserver(() => {
+      if (layoutBusyRef.current) return;
+      redraw();
+    });
+    ro.observe(measureTarget);
     scroll.addEventListener("scroll", drawLines, { passive: true });
     window.addEventListener("resize", redraw);
     return () => {
@@ -353,9 +396,7 @@ export function AlignmentCanvas({
     <div className="alignment-workspace flex w-full min-w-0 justify-center">
       <div
         ref={shellRef}
-        className={`relative flex max-w-full flex-col rounded border-2 border-[#888] bg-[#fafafa] ${
-          needsHScroll ? "w-full" : "w-fit"
-        }`}
+        className="relative flex max-w-full flex-col rounded border-2 border-[#888] bg-[#fafafa]"
         style={{ height: shellHeight }}
       >
         <div
@@ -377,9 +418,7 @@ export function AlignmentCanvas({
         </div>
         <div
           ref={scrollRef}
-          className={`min-h-0 flex-1 ${
-            needsHScroll ? "overflow-x-auto" : "overflow-x-hidden"
-          } overflow-y-hidden`}
+          className="flex min-h-0 flex-1 justify-center overflow-x-auto overflow-y-hidden"
         >
           <div
             ref={canvasRef}
