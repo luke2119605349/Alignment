@@ -1,9 +1,6 @@
-import { SignIn } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
 
+/** Account linking removed — sessions are password-gated. */
 export default function SignInPage() {
-  return (
-    <div className="flex justify-center py-12">
-      <SignIn />
-    </div>
-  );
+  redirect("/");
 }

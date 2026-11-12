@@ -1,10 +1,14 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 /**
- * Clerk runs for optional account linking.
- * Sessions are public; mutations are password-gated (no anonymous cookie ownership).
+ * Sessions are public and password-gated — no auth middleware required.
+ * Clerk remains optional for "Link account" only; do not require clerkMiddleware
+ * so production works even with development Clerk keys.
  */
-export default clerkMiddleware();
+export function middleware(_req: NextRequest) {
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
