@@ -526,9 +526,13 @@ export function AlignmentWorkspace() {
     [refreshSessions, selectSession, session?.id, sessionPassword],
   );
 
+  // Bootstrap once on mount — do not depend on callback identities (re-running
+  // refreshSessions replaces `sessions` with a new array every time).
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       const list = await refreshSessions();
+      if (cancelled) return;
       if (list.length === 0) {
         selectSession(null);
         setSessionsExpanded(true);
@@ -550,7 +554,11 @@ export function AlignmentWorkspace() {
         return open;
       });
     })();
-  }, [refreshProgress, refreshSessions, selectSession]);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only bootstrap
+  }, []);
 
   const loadVerse = useCallback(
     async (sess: Session | null, source: string, withDiff: boolean) => {
@@ -673,10 +681,14 @@ export function AlignmentWorkspace() {
     }
   }
 
-  function onEdit(latinIndex: number, value: string) {
+  const onEdit = useCallback((latinIndex: number, value: string) => {
     setEdits((prev) => ({ ...prev, [latinIndex]: value }));
     setDirty(true);
-  }
+  }, []);
+
+  const onRequestSubmit = useCallback(() => {
+    submitBtnRef.current?.focus();
+  }, []);
 
   async function submitAndProceed() {
     const ok = await persistAlignment({ submit: true });
@@ -1197,7 +1209,7 @@ export function AlignmentWorkspace() {
             edits={edits}
             onEdit={onEdit}
             editable={unlocked}
-            onRequestSubmit={() => submitBtnRef.current?.focus()}
+            onRequestSubmit={onRequestSubmit}
           />
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">

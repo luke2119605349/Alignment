@@ -108,12 +108,15 @@ type Props = {
 
 type DragKind = "greek" | "latin";
 
+/** Stable default — a fresh `[]` each render would retrigger layout effects and freeze the tab. */
+const EMPTY_DIFF: { latinIndex: number; greekIdx: number }[] = [];
+
 export function AlignmentCanvas({
   greek,
   latinEntries,
   edits,
   onEdit,
-  diffRemoved = [],
+  diffRemoved = EMPTY_DIFF,
   editable = true,
   onRequestSubmit,
 }: Props) {
@@ -155,11 +158,12 @@ export function AlignmentCanvas({
     return set;
   }, [edits, greek.length, latinEntries]);
 
-  // Reset row shifts when the verse / token set changes
+  // Reset row shifts when the verse / token set changes (length/identity-friendly deps)
+  const latinSig = `${latinEntries.length}:${latinEntries[0]?.latinWord ?? ""}:${latinEntries[latinEntries.length - 1]?.latinWord ?? ""}`;
   useEffect(() => {
     setGreekOffset(0);
     setLatinOffset(0);
-  }, [greek, latinEntries]);
+  }, [greek.length, latinSig]);
 
   const drawLines = useCallback(() => {
     const canvas = canvasRef.current;
@@ -189,10 +193,10 @@ export function AlignmentCanvas({
         if (!gEl) return;
         const grect = gEl.getBoundingClientRect();
         next.push({
-          x1,
-          y1,
-          x2: grect.left + grect.width / 2 - crect.left,
-          y2: grect.bottom - crect.top,
+          x1: Math.round(x1),
+          y1: Math.round(y1),
+          x2: Math.round(grect.left + grect.width / 2 - crect.left),
+          y2: Math.round(grect.bottom - crect.top),
           invalid,
         });
       });
@@ -206,10 +210,10 @@ export function AlignmentCanvas({
       const lrect = lEl.getBoundingClientRect();
       const grect = gEl.getBoundingClientRect();
       next.push({
-        x1: lrect.left + lrect.width / 2 - crect.left,
-        y1: lrect.top - crect.top,
-        x2: grect.left + grect.width / 2 - crect.left,
-        y2: grect.bottom - crect.top,
+        x1: Math.round(lrect.left + lrect.width / 2 - crect.left),
+        y1: Math.round(lrect.top - crect.top),
+        x2: Math.round(grect.left + grect.width / 2 - crect.left),
+        y2: Math.round(grect.bottom - crect.top),
         invalid: true,
       });
     }
@@ -333,8 +337,17 @@ export function AlignmentCanvas({
     if (!shell || !scroll) return;
     // Observe the stable outer wrapper, not the scrollport we resize ourselves.
     const measureTarget = shell.parentElement ?? shell;
-    const ro = new ResizeObserver(() => {
+    let lastW = measureTarget.clientWidth;
+    let lastH = measureTarget.clientHeight;
+    const ro = new ResizeObserver((entries) => {
       if (layoutBusyRef.current) return;
+      const cr = entries[0]?.contentRect;
+      const w = cr?.width ?? measureTarget.clientWidth;
+      const h = cr?.height ?? measureTarget.clientHeight;
+      // Ignore sub-pixel / self-induced noise from shell width tweaks.
+      if (Math.abs(w - lastW) < 1 && Math.abs(h - lastH) < 1) return;
+      lastW = w;
+      lastH = h;
       redraw();
     });
     ro.observe(measureTarget);
