@@ -145,7 +145,7 @@ export const sessionVerseSubmissions = pgTable(
     id: serial("id").primaryKey(),
     sessionId: integer("session_id")
       .notNull()
-      .references(() => alignmentSessions.id),
+      .references(() => alignmentSessions.id, { onDelete: "cascade" }),
     verseId: integer("verse_id")
       .notNull()
       .references(() => verses.id),
@@ -180,7 +180,9 @@ export const alignments = pgTable("alignments", {
   score: real("score"),
   /** System baseline id, e.g. "aqua" | "bespoke". Null on session rows. */
   sourceKey: text("source_key"),
-  sessionId: integer("session_id").references(() => alignmentSessions.id),
+  sessionId: integer("session_id").references(() => alignmentSessions.id, {
+    onDelete: "cascade",
+  }),
   supersededById: integer("superseded_by_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
