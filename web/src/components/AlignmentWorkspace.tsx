@@ -154,15 +154,33 @@ function pairsFromEdits(
   return pairs;
 }
 
-function ProgressBar({ label, pct, detail }: { label: string; pct: number; detail: string }) {
+type VerseProg = { done: number; total: number; pct: number };
+
+function ProgressBar({
+  label,
+  pct,
+  detail,
+  compact = false,
+}: {
+  label: string;
+  pct: number;
+  detail: string;
+  compact?: boolean;
+}) {
   const color = progressColor(pct);
   return (
-    <div className="min-w-[10rem] flex-1">
-      <div className="mb-1 flex justify-between text-xs">
-        <span className="italic">{label}</span>
-        <span>{Math.round(pct * 100)}% · {detail}</span>
+    <div className={compact ? "min-w-[7rem] flex-1" : "min-w-[10rem] flex-1"}>
+      <div className="mb-1 flex justify-between gap-2 text-xs">
+        {label ? <span className="italic">{label}</span> : <span />}
+        <span className="shrink-0">
+          {Math.round(pct * 100)}% · {detail}
+        </span>
       </div>
-      <div className="h-2.5 overflow-hidden rounded border-2 border-[#888] bg-[#eee]">
+      <div
+        className={`overflow-hidden rounded border-2 border-[#888] bg-[#eee] ${
+          compact ? "h-2" : "h-2.5"
+        }`}
+      >
         <div
           className="h-full transition-[width] duration-300"
           style={{ width: `${Math.round(pct * 100)}%`, background: color }}
@@ -188,9 +206,10 @@ export function AlignmentWorkspace() {
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
   const [sessionPassword, setSessionPassword] = useState("");
-  const [unlockPassword, setUnlockPassword] = useState("");
-  const [unlockError, setUnlockError] = useState("");
   const [unlocking, setUnlocking] = useState(false);
+  const [sessionProgress, setSessionProgress] = useState<
+    Record<number, VerseProg>
+  >({});
   const [sources, setSources] = useState<SourceMeta[]>([]);
   const [alignmentSource, setAlignmentSource] = useState("aqua");
   const [greek, setGreek] = useState<string[]>([]);
@@ -278,6 +297,51 @@ export function AlignmentWorkspace() {
     }
   }, []);
 
+  const applyProgressVids = useCallback(
+    (sessionId: number, vids: string[]) => {
+      const set = new Set(vids);
+      const prog = ntVerseCompletion(set);
+      setSessionProgress((prev) => ({
+        ...prev,
+        [sessionId]: {
+          done: prog.done,
+          total: prog.total,
+          pct: prog.pct,
+        },
+      }));
+      return set;
+    },
+    [],
+  );
+
+  const refreshSessionProgressMap = useCallback(
+    async (list: Session[]) => {
+      const entries = await Promise.all(
+        list.map(async (s) => {
+          try {
+            const res = await fetch(`/api/sessions/${s.id}/progress`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            const vids: string[] = data.submittedVids ?? [];
+            const prog = ntVerseCompletion(new Set(vids));
+            return [
+              s.id,
+              { done: prog.done, total: prog.total, pct: prog.pct },
+            ] as const;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const next: Record<number, VerseProg> = {};
+      for (const entry of entries) {
+        if (entry) next[entry[0]] = entry[1];
+      }
+      setSessionProgress(next);
+    },
+    [],
+  );
+
   const refreshSessions = useCallback(async () => {
     const res = await fetch("/api/sessions");
     if (!res.ok) return [];
@@ -291,65 +355,79 @@ export function AlignmentWorkspace() {
       }),
     );
     setSessions(list);
+    void refreshSessionProgressMap(list);
     return list;
-  }, []);
+  }, [refreshSessionProgressMap]);
 
-  const refreshProgress = useCallback(async (sessionId: number) => {
-    const res = await fetch(`/api/sessions/${sessionId}/progress`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setCompletedVids(new Set(data.submittedVids ?? []));
-  }, []);
+  const refreshProgress = useCallback(
+    async (sessionId: number) => {
+      const res = await fetch(`/api/sessions/${sessionId}/progress`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const vids: string[] = data.submittedVids ?? [];
+      setCompletedVids(applyProgressVids(sessionId, vids));
+    },
+    [applyProgressVids],
+  );
 
   const selectSession = useCallback(
     (s: Session | null) => {
       setSession(s);
       if (!s) {
         setSessionPassword("");
-        setUnlockPassword("");
-        setUnlockError("");
         return;
       }
-      const stored = getStoredPassword(s.id);
-      setSessionPassword(stored);
-      setUnlockPassword("");
-      setUnlockError("");
+      setSessionPassword(getStoredPassword(s.id));
       void refreshProgress(s.id);
     },
     [refreshProgress],
   );
 
-  const unlockSession = useCallback(async () => {
-    if (!session) return false;
-    const password = unlockPassword;
-    if (!password) {
-      setUnlockError("Enter the session password");
-      return false;
-    }
-    setUnlocking(true);
-    setUnlockError("");
-    try {
-      const res = await fetch(`/api/sessions/${session.id}/unlock`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setUnlockError(data.error ?? "Incorrect password");
-        setSessionPassword("");
-        clearStoredPassword(session.id);
+  const unlockSessionWithPassword = useCallback(
+    async (s: Session, password: string) => {
+      if (!password.trim()) {
+        setStatus("Password required to edit");
         return false;
       }
-      setSessionPassword(password);
-      storePassword(session.id, password);
-      setUnlockPassword("");
-      setStatus(`Unlocked “${session.label}” for editing`);
-      return true;
-    } finally {
-      setUnlocking(false);
-    }
-  }, [session, unlockPassword]);
+      setUnlocking(true);
+      try {
+        const res = await fetch(`/api/sessions/${s.id}/unlock`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setStatus(data.error ?? "Incorrect password");
+          if (sessionRef.current?.id === s.id) setSessionPassword("");
+          clearStoredPassword(s.id);
+          return false;
+        }
+        setSession(s);
+        setSessionPassword(password);
+        storePassword(s.id, password);
+        void refreshProgress(s.id);
+        setStatus(`Unlocked “${s.label}” for editing`);
+        return true;
+      } finally {
+        setUnlocking(false);
+      }
+    },
+    [refreshProgress],
+  );
+
+  const editSession = useCallback(
+    async (s: Session) => {
+      const password =
+        window.prompt(`Password for “${s.label}” (required to edit):`) ?? "";
+      if (!password) {
+        setStatus("Password required to edit");
+        return;
+      }
+      await unlockSessionWithPassword(s, password);
+    },
+    [unlockSessionWithPassword],
+  );
 
   const createSession = useCallback(async () => {
     const label = newSessionName.trim();
@@ -680,50 +758,80 @@ export function AlignmentWorkspace() {
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4">
-      {/* —— Session strip (upper bar, centered when collapsed) —— */}
+      {/* —— Session strip —— */}
       <section className="rounded-md border-2 border-[#888] bg-white p-3">
         <div
-          className={`flex flex-wrap items-center gap-3 ${
-            sessionsExpanded ? "" : "justify-center text-center"
+          className={`flex items-center gap-3 ${
+            sessionsExpanded ? "flex-wrap" : "min-w-0"
           }`}
         >
-          <button
-            type="button"
-            className="rounded border-2 border-[#888] bg-[#f8f8f8] px-2.5 py-1 text-sm"
-            onClick={() => setSessionsExpanded((v) => !v)}
-            aria-expanded={sessionsExpanded}
-            title={sessionsExpanded ? "Hide session list" : "Show all sessions"}
-          >
-            {sessionsExpanded ? "▾ Sessions" : "▸ Sessions"}
-          </button>
+          <div className="flex shrink-0 flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="rounded border-2 border-[#888] bg-[#f8f8f8] px-2.5 py-1 text-sm"
+              onClick={() => setSessionsExpanded((v) => !v)}
+              aria-expanded={sessionsExpanded}
+              title={sessionsExpanded ? "Hide session list" : "Show all sessions"}
+            >
+              {sessionsExpanded ? "▾ Sessions" : "▸ Sessions"}
+            </button>
+            {!sessionsExpanded && session && (
+              <div className="min-w-0 text-left text-sm">
+                <span className="font-medium">{session.label}</span>
+                <span className="text-[#666]">
+                  {" "}
+                  · {session.username} · {formatSessionTime(session.createdAt)}
+                </span>
+                {unlocked && (
+                  <p className="mt-0.5 text-xs text-[#2e7d32]">
+                    Unlocked — edits and delete are enabled in this browser tab.
+                  </p>
+                )}
+              </div>
+            )}
+            {!sessionsExpanded && !session && (
+              <span className="text-sm text-[#666]">No session selected</span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSessionsExpanded(true);
+                setShowCreateForm(true);
+                setCreateError("");
+              }}
+              className="rounded border-2 border-black bg-[#C1FCC1] px-3 py-1.5 text-sm"
+            >
+              New session
+            </button>
+          </div>
           {!sessionsExpanded && session && (
-            <div className="min-w-0 text-sm">
-              <span className="font-medium">{session.label}</span>
-              <span className="text-[#666]">
-                {" "}
-                · {session.username} · {formatSessionTime(session.createdAt)}
-              </span>
-              {unlocked && (
-                <p className="mt-0.5 text-xs text-[#2e7d32]">
-                  Unlocked — edits and delete are enabled in this browser tab.
-                </p>
-              )}
+            <div className="flex min-w-0 flex-1 flex-wrap gap-3">
+              <ProgressBar
+                label="All verses"
+                pct={verseProg.pct}
+                detail={`${verseProg.done}/${verseProg.total}`}
+                compact
+              />
+              <ProgressBar
+                label="Chapter verses"
+                pct={chapterProg.pct}
+                detail={`${chapterProg.done}/${chapterProg.total}`}
+                compact
+              />
+              <ProgressBar
+                label="Book chapters"
+                pct={bookProg.pct}
+                detail={`${bookProg.done}/${bookProg.total}`}
+                compact
+              />
+              <ProgressBar
+                label="NT books"
+                pct={ntProg.pct}
+                detail={`${ntProg.done}/${ntProg.total}`}
+                compact
+              />
             </div>
           )}
-          {!sessionsExpanded && !session && (
-            <span className="text-sm text-[#666]">No session selected</span>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              setSessionsExpanded(true);
-              setShowCreateForm(true);
-              setCreateError("");
-            }}
-            className="rounded border-2 border-black bg-[#C1FCC1] px-3 py-1.5 text-sm"
-          >
-            New session
-          </button>
         </div>
 
         {sessionsExpanded && (
@@ -805,7 +913,7 @@ export function AlignmentWorkspace() {
               </p>
             ) : (
               <div className="max-h-56 overflow-auto rounded-md border-2 border-[#ddd]">
-                <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
+                <table className="w-full min-w-[40rem] border-collapse text-left text-sm">
                   <thead className="sticky top-0 bg-[#f3eee0]">
                     <tr>
                       <th className="border-b-2 border-[#ddd] px-3 py-2 font-normal italic">
@@ -836,6 +944,9 @@ export function AlignmentWorkspace() {
                         </button>
                       </th>
                       <th className="border-b-2 border-[#ddd] px-3 py-2 font-normal italic">
+                        All verses
+                      </th>
+                      <th className="border-b-2 border-[#ddd] px-3 py-2 font-normal italic">
                         Actions
                       </th>
                     </tr>
@@ -843,23 +954,27 @@ export function AlignmentWorkspace() {
                   <tbody>
                     {sortedSessions.map((s) => {
                       const active = session?.id === s.id;
+                      const prog = sessionProgress[s.id];
                       return (
                         <tr
                           key={s.id}
+                          role="button"
+                          tabIndex={0}
                           className={
                             active
-                              ? "bg-[#fff3c4]"
-                              : "bg-white hover:bg-[#faf6ea]"
+                              ? "cursor-pointer bg-[#fff3c4]"
+                              : "cursor-pointer bg-white hover:bg-[#faf6ea]"
                           }
+                          onClick={() => selectSession(s)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              selectSession(s);
+                            }
+                          }}
                         >
-                          <td className="border-b border-[#eee] px-3 py-2">
-                            <button
-                              type="button"
-                              className="font-medium text-left hover:underline"
-                              onClick={() => selectSession(s)}
-                            >
-                              {s.label}
-                            </button>
+                          <td className="border-b border-[#eee] px-3 py-2 font-medium">
+                            {s.label}
                           </td>
                           <td className="border-b border-[#eee] px-3 py-2 text-[#444]">
                             {s.username}
@@ -867,7 +982,43 @@ export function AlignmentWorkspace() {
                           <td className="border-b border-[#eee] px-3 py-2 whitespace-nowrap text-[#444]">
                             {formatSessionTime(s.createdAt)}
                           </td>
-                          <td className="border-b border-[#eee] px-3 py-2 whitespace-nowrap">
+                          <td
+                            className="border-b border-[#eee] px-3 py-2"
+                            style={{ minWidth: "9rem" }}
+                          >
+                            {prog ? (
+                              <ProgressBar
+                                label=""
+                                pct={prog.pct}
+                                detail={`${prog.done}/${prog.total}`}
+                                compact
+                              />
+                            ) : (
+                              <span className="text-xs text-[#888]">…</span>
+                            )}
+                          </td>
+                          <td
+                            className="border-b border-[#eee] px-3 py-2 whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => selectSession(s)}
+                              className="mr-2 rounded border-2 border-black bg-[#C1FCC1] px-2 py-0.5 text-xs"
+                              title={`View “${s.label}”`}
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void editSession(s)}
+                              disabled={unlocking}
+                              className="mr-2 rounded border-2 border-black bg-[#FAD780] px-2 py-0.5 text-xs"
+                              title={`Edit “${s.label}” (password required)`}
+                            >
+                              Edit
+                            </button>
                             <button
                               type="button"
                               onClick={() => void exportSession(s)}
@@ -896,64 +1047,33 @@ export function AlignmentWorkspace() {
         )}
       </section>
 
-      {/* —— Progress —— */}
-      <section className="rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3">
-        <h2 className="mb-2 text-sm italic text-[#523d02]">Progress</h2>
-        <div className="flex flex-wrap gap-3">
-          <ProgressBar
-            label="All verses"
-            pct={verseProg.pct}
-            detail={`${verseProg.done}/${verseProg.total}`}
-          />
-          <ProgressBar
-            label="Chapter verses"
-            pct={chapterProg.pct}
-            detail={`${chapterProg.done}/${chapterProg.total}`}
-          />
-          <ProgressBar
-            label="Book chapters"
-            pct={bookProg.pct}
-            detail={`${bookProg.done}/${bookProg.total}`}
-          />
-          <ProgressBar
-            label="NT books"
-            pct={ntProg.pct}
-            detail={`${ntProg.done}/${ntProg.total}`}
-          />
-        </div>
-      </section>
-
-      {session && !unlocked && (
-        <form
-          className="flex flex-wrap items-end gap-2 rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void unlockSession();
-          }}
-        >
-          <label className="text-xs italic">
-            Password for “{session.label}”
-            <input
-              type="password"
-              className="mt-1 block border-2 border-[#888] bg-white px-2 py-1.5 text-sm"
-              value={unlockPassword}
-              onChange={(e) => setUnlockPassword(e.target.value)}
-              placeholder="Required to edit or delete"
-              autoComplete="current-password"
+      {/* —— Progress (when session list is expanded) —— */}
+      {sessionsExpanded && (
+        <section className="rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3">
+          <h2 className="mb-2 text-sm italic text-[#523d02]">Progress</h2>
+          <div className="flex flex-wrap gap-3">
+            <ProgressBar
+              label="All verses"
+              pct={verseProg.pct}
+              detail={`${verseProg.done}/${verseProg.total}`}
             />
-          </label>
-          <button
-            type="submit"
-            disabled={unlocking}
-            className="rounded border-2 border-black bg-[#C1FCC1] px-3 py-1.5 text-sm"
-          >
-            {unlocking ? "Unlocking…" : "Unlock"}
-          </button>
-          {unlockError && <span className="text-xs text-[#a00]">{unlockError}</span>}
-          <span className="text-xs text-[#666]">
-            Viewing is open to everyone; edits need the session password.
-          </span>
-        </form>
+            <ProgressBar
+              label="Chapter verses"
+              pct={chapterProg.pct}
+              detail={`${chapterProg.done}/${chapterProg.total}`}
+            />
+            <ProgressBar
+              label="Book chapters"
+              pct={bookProg.pct}
+              detail={`${bookProg.done}/${bookProg.total}`}
+            />
+            <ProgressBar
+              label="NT books"
+              pct={ntProg.pct}
+              detail={`${ntProg.done}/${ntProg.total}`}
+            />
+          </div>
+        </section>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
