@@ -32,11 +32,6 @@ type Session = {
   createdAt: string;
 };
 type SourceMeta = { id: string; displayName: string; filename: string; isDefault?: boolean };
-type DiffResult = {
-  added: { latinIndex: number; greekIdx: number }[];
-  removed: { latinIndex: number; greekIdx: number }[];
-  unchanged: number;
-};
 type SessionSortKey = "label" | "username" | "createdAt";
 
 const SOURCE_PREF_KEY = "cntr_align_source";
@@ -205,9 +200,7 @@ export function AlignmentWorkspace() {
   const [baselineEdits, setBaselineEdits] = useState<Record<number, string>>({});
   const [alignmentJson, setAlignmentJson] = useState<unknown>(null);
   const [fromSession, setFromSession] = useState(false);
-  const [showDiff, setShowDiff] = useState(false);
   const [showJson, setShowJson] = useState(false);
-  const [diff, setDiff] = useState<DiffResult | null>(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -512,7 +505,6 @@ export function AlignmentWorkspace() {
         setAlignmentJson(data.alignmentJson ?? null);
         setFromSession(Boolean(data.fromSession));
         setSources(data.sources ?? []);
-        setDiff(data.diff ?? null);
         if (data.alignmentSource) setAlignmentSource(data.alignmentSource);
       } finally {
         setLoading(false);
@@ -522,8 +514,8 @@ export function AlignmentWorkspace() {
   );
 
   useEffect(() => {
-    if (session) void loadVerse(session, alignmentSource, showDiff);
-  }, [session, vid, alignmentSource, showDiff, loadVerse]);
+    if (session) void loadVerse(session, alignmentSource, false);
+  }, [session, vid, alignmentSource, loadVerse]);
 
   const persistAlignment = useCallback(
     async (opts: { submit?: boolean; silent?: boolean } = {}) => {
@@ -683,73 +675,18 @@ export function AlignmentWorkspace() {
     setStatus(`Exported “${s.label}”`);
   }
 
-  const liveDiff = useMemo(() => {
-    if (!showDiff) return null;
-    if (diff && fromSession) return diff;
-    const key = (s: number, t: number) => `${s}:${t}`;
-    const base = new Set<string>();
-    const cur = new Set<string>();
-    for (const e of baselineEntries) {
-      for (const p of e.pairs) base.add(key(e.latinIndex, p.greekIdx));
-    }
-    for (const e of latinEntries) {
-      const raw = edits[e.latinIndex] ?? "";
-      parseField(raw, greek.length).idxs.forEach((n) =>
-        cur.add(key(e.latinIndex, n)),
-      );
-    }
-    const added: DiffResult["added"] = [];
-    const removed: DiffResult["removed"] = [];
-    for (const k of cur) {
-      if (!base.has(k)) {
-        const [s, t] = k.split(":").map(Number);
-        added.push({ latinIndex: s, greekIdx: t });
-      }
-    }
-    for (const k of base) {
-      if (!cur.has(k)) {
-        const [s, t] = k.split(":").map(Number);
-        removed.push({ latinIndex: s, greekIdx: t });
-      }
-    }
-    return { added, removed, unchanged: [...cur].filter((k) => base.has(k)).length };
-  }, [baselineEntries, diff, edits, fromSession, greek.length, latinEntries, showDiff]);
-
   const chapters = book.verseCounts.length;
   const verseCount = book.verseCounts[chapter - 1] ?? 1;
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4">
-      {/* —— Progress (always above the workspace) —— */}
-      <section className="rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3">
-        <h2 className="mb-2 text-sm italic text-[#523d02]">Progress</h2>
-        <div className="flex flex-wrap gap-3">
-          <ProgressBar
-            label="All verses"
-            pct={verseProg.pct}
-            detail={`${verseProg.done}/${verseProg.total}`}
-          />
-          <ProgressBar
-            label="Chapter verses"
-            pct={chapterProg.pct}
-            detail={`${chapterProg.done}/${chapterProg.total}`}
-          />
-          <ProgressBar
-            label="Book chapters"
-            pct={bookProg.pct}
-            detail={`${bookProg.done}/${bookProg.total}`}
-          />
-          <ProgressBar
-            label="NT books"
-            pct={ntProg.pct}
-            detail={`${ntProg.done}/${ntProg.total}`}
-          />
-        </div>
-      </section>
-
-      {/* —— Session table (collapsible) —— */}
+      {/* —— Session strip (upper bar, centered when collapsed) —— */}
       <section className="rounded-md border-2 border-[#888] bg-white p-3">
-        <div className="flex flex-wrap items-center gap-3">
+        <div
+          className={`flex flex-wrap items-center gap-3 ${
+            sessionsExpanded ? "" : "justify-center text-center"
+          }`}
+        >
           <button
             type="button"
             className="rounded border-2 border-[#888] bg-[#f8f8f8] px-2.5 py-1 text-sm"
@@ -760,12 +697,17 @@ export function AlignmentWorkspace() {
             {sessionsExpanded ? "▾ Sessions" : "▸ Sessions"}
           </button>
           {!sessionsExpanded && session && (
-            <div className="min-w-0 flex-1 text-sm">
+            <div className="min-w-0 text-sm">
               <span className="font-medium">{session.label}</span>
               <span className="text-[#666]">
                 {" "}
                 · {session.username} · {formatSessionTime(session.createdAt)}
               </span>
+              {unlocked && (
+                <p className="mt-0.5 text-xs text-[#2e7d32]">
+                  Unlocked — edits and delete are enabled in this browser tab.
+                </p>
+              )}
             </div>
           )}
           {!sessionsExpanded && !session && (
@@ -954,6 +896,33 @@ export function AlignmentWorkspace() {
         )}
       </section>
 
+      {/* —— Progress —— */}
+      <section className="rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3">
+        <h2 className="mb-2 text-sm italic text-[#523d02]">Progress</h2>
+        <div className="flex flex-wrap gap-3">
+          <ProgressBar
+            label="All verses"
+            pct={verseProg.pct}
+            detail={`${verseProg.done}/${verseProg.total}`}
+          />
+          <ProgressBar
+            label="Chapter verses"
+            pct={chapterProg.pct}
+            detail={`${chapterProg.done}/${chapterProg.total}`}
+          />
+          <ProgressBar
+            label="Book chapters"
+            pct={bookProg.pct}
+            detail={`${bookProg.done}/${bookProg.total}`}
+          />
+          <ProgressBar
+            label="NT books"
+            pct={ntProg.pct}
+            detail={`${ntProg.done}/${ntProg.total}`}
+          />
+        </div>
+      </section>
+
       {session && !unlocked && (
         <form
           className="flex flex-wrap items-end gap-2 rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3"
@@ -985,12 +954,6 @@ export function AlignmentWorkspace() {
             Viewing is open to everyone; edits need the session password.
           </span>
         </form>
-      )}
-
-      {session && unlocked && (
-        <p className="text-xs text-[#2e7d32]">
-          Unlocked “{session.label}” — edits and delete are enabled in this browser tab.
-        </p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -1078,17 +1041,10 @@ export function AlignmentWorkspace() {
         >
           Next →
         </button>
-        <span className="text-xs text-[#666]">
-          vid {vid}
-          {completed.has(vid) ? " · submitted" : ""}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4">
         <label className="text-sm italic">
           Default alignment
           <select
-            className="ml-2 min-w-[14rem] border-2 border-[#888] bg-white px-2.5 py-1.5"
+            className="ml-2 min-w-[12rem] border-2 border-[#888] bg-white px-2.5 py-1.5"
             value={alignmentSource}
             onChange={(e) => onSourceChange(e.target.value)}
           >
@@ -1105,55 +1061,26 @@ export function AlignmentWorkspace() {
             ))}
           </select>
         </label>
-        <label className="flex items-center gap-1 text-sm">
-          <input
-            type="checkbox"
-            checked={showDiff}
-            onChange={(e) => setShowDiff(e.target.checked)}
-          />
-          Show diff vs baseline
-        </label>
-        {fromSession && (
-          <span className="text-xs text-[#666]">Using your saved session edits</span>
-        )}
-        {(loading || saving) && (
-          <span className="text-xs text-[#666]">
-            {loading ? "Loading…" : "Saving…"}
-          </span>
-        )}
+        <span className="text-xs text-[#666]">
+          vid {vid}
+          {completed.has(vid) ? " · submitted" : ""}
+          {fromSession ? " · session edits" : ""}
+          {loading || saving ? (loading ? " · Loading…" : " · Saving…") : ""}
+        </span>
       </div>
 
-      <p className="text-sm italic text-[#444]">
-        {unlocked
-          ? "Edits autosave after 300ms when indices are valid. Tab to Submit and Proceed to mark the verse complete and advance."
-          : "Unlock the session with its password to edit alignments."}
-        {showDiff ? " Red dashed lines were removed from the baseline." : ""}
-      </p>
-
-      {/* Near-full-width strip with a little page-edge margin; H-scroll only here */}
       {session && (
-        <section className="-mx-3 w-[calc(100%+1.5rem)] min-w-0">
+        <section className="w-full min-w-0">
           <AlignmentCanvas
             greek={greek}
             latinEntries={latinEntries}
             edits={edits}
             onEdit={onEdit}
-            diffRemoved={showDiff ? liveDiff?.removed : []}
             editable={unlocked}
             onRequestSubmit={() => submitBtnRef.current?.focus()}
           />
 
-          {showDiff && liveDiff && (
-            <div className="mt-4 rounded-md border-2 border-[#888] bg-white p-4 text-sm">
-              <h2 className="mb-2 text-sm italic">Diff vs {alignmentSource} baseline</h2>
-              <p>
-                Unchanged: {liveDiff.unchanged} · Added: {liveDiff.added.length} ·
-                Removed: {liveDiff.removed.length}
-              </p>
-            </div>
-          )}
-
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <button
               type="button"
               onClick={goPrevVerse}
@@ -1176,14 +1103,6 @@ export function AlignmentWorkspace() {
               className="rounded border-2 border-black bg-[#C1FCC1] px-4 py-2 text-sm font-medium"
             >
               Submit and Proceed
-            </button>
-            <button
-              type="button"
-              onClick={() => void persistAlignment({ submit: false })}
-              disabled={loading || saving || !unlocked}
-              className="rounded border-2 border-black bg-white px-3 py-2 text-sm"
-            >
-              Save draft
             </button>
             <button
               type="button"
@@ -1241,7 +1160,9 @@ export function AlignmentWorkspace() {
             />
           )}
 
-          <CollationPanel vid={vid} />
+          <div className="mt-6">
+            <CollationPanel vid={vid} />
+          </div>
         </section>
       )}
     </div>

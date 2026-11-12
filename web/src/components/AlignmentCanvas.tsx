@@ -246,8 +246,8 @@ export function AlignmentCanvas({
 
     const leftPad = Math.max(0, -gOff, -lOff);
     const rightEdge = Math.max(gBlock + gOff, lBlock + lOff, gBlock, lBlock);
-    // Extra right slack so the dashed frame doesn't clip the last token
-    const rightSlack = 12;
+    // Extra right slack so w-fit frames don't clip the last token
+    const rightSlack = 28;
     const contentWidth = leftPad + rightEdge + PAD_X * 2 + rightSlack;
     const fits = contentWidth <= scroll.clientWidth + 0.5;
 
@@ -256,8 +256,11 @@ export function AlignmentCanvas({
     canvas.style.height = `${viewH}px`;
     canvas.style.minHeight = `${viewH}px`;
     canvas.style.maxHeight = `${viewH}px`;
-    canvas.style.minWidth = fits ? "100%" : `${Math.ceil(contentWidth)}px`;
-    canvas.style.width = fits ? "100%" : `${Math.ceil(contentWidth)}px`;
+    // When content is narrower than the viewport, size to content so the shell can center.
+    // When wider, keep content width and enable horizontal scroll.
+    const sized = Math.ceil(contentWidth);
+    canvas.style.minWidth = `${sized}px`;
+    canvas.style.width = `${sized}px`;
     canvas.style.paddingLeft = `${PAD_X + leftPad}px`;
     canvas.style.paddingRight = `${PAD_X + rightSlack}px`;
 
@@ -347,17 +350,31 @@ export function AlignmentCanvas({
   };
 
   return (
-    <div className="alignment-workspace w-full min-w-0">
-      <p className="mb-2 px-2 text-[0.7rem] text-[#666]">
-        Use the <span className="font-medium text-[#523d02]">⇄ Drag</span>{" "}
-        handle on each row to slide Greek or Latin sideways and untangle
-        overlapping links. Resize from the bottom edge.
-      </p>
+    <div className="alignment-workspace flex w-full min-w-0 justify-center">
       <div
         ref={shellRef}
-        className="relative flex w-full flex-col rounded border-2 border-[#888] bg-[#fafafa]"
+        className={`relative flex max-w-full flex-col rounded border-2 border-[#888] bg-[#fafafa] ${
+          needsHScroll ? "w-full" : "w-fit"
+        }`}
         style={{ height: shellHeight }}
       >
+        <div
+          className="absolute left-2 top-2 z-20"
+          title={
+            "Drag the Greek or Latin ⇄ handle sideways to untangle overlapping links. " +
+            "Resize the workspace from the bottom edge. " +
+            "Edits autosave after 300ms when indices are valid. " +
+            "Tab to Submit and Proceed to mark a verse complete and advance. " +
+            "Unlock a session with its password to edit."
+          }
+        >
+          <span
+            className="inline-flex h-6 w-6 cursor-help items-center justify-center rounded-full border-2 border-[#888] bg-[#fff8e7] text-xs font-semibold text-[#523d02]"
+            aria-label="Workspace help"
+          >
+            ?
+          </span>
+        </div>
         <div
           ref={scrollRef}
           className={`min-h-0 flex-1 ${
@@ -367,7 +384,6 @@ export function AlignmentCanvas({
           <div
             ref={canvasRef}
             className="relative box-border flex h-full flex-col py-3"
-            style={{ minWidth: "100%" }}
           >
             <svg
               className="pointer-events-none absolute left-0 top-0 overflow-visible"
@@ -392,7 +408,7 @@ export function AlignmentCanvas({
             <div className="relative z-[1] flex h-full min-h-0 w-full flex-col justify-between">
               <div
                 ref={greekGroupRef}
-                className={`flex w-fit shrink-0 max-w-none items-stretch rounded-md border-2 border-dashed ${
+                className={`box-border flex w-fit shrink-0 max-w-none items-stretch rounded-md border-2 border-dashed pr-2 ${
                   dragging === "greek"
                     ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
                     : "border-[#c9a86a] bg-[#EAC17D]/25 hover:border-[#a67c2a] hover:bg-[#EAC17D]/40"
@@ -422,7 +438,7 @@ export function AlignmentCanvas({
                 </div>
                 <div
                   ref={greekRowRef}
-                  className="greek-row flex w-fit cursor-grab flex-nowrap items-end py-1 pl-1.5 pr-3 active:cursor-grabbing"
+                  className="greek-row flex w-fit cursor-grab flex-nowrap items-end py-1 pl-1.5 pr-5 active:cursor-grabbing"
                   style={{ gap: MIN_GAP }}
                 >
                   {greek.map((w, i) => (
@@ -448,7 +464,7 @@ export function AlignmentCanvas({
 
               <div
                 ref={latinGroupRef}
-                className={`flex w-fit shrink-0 max-w-none items-stretch rounded-md border-2 border-dashed ${
+                className={`box-border flex w-fit shrink-0 max-w-none items-stretch rounded-md border-2 border-dashed pr-2 ${
                   dragging === "latin"
                     ? "border-[#0066CC] bg-[#e8f1ff] shadow-sm"
                     : "border-[#888] bg-white/80 hover:border-[#555] hover:bg-[#f3f3f3]"
@@ -478,7 +494,7 @@ export function AlignmentCanvas({
                 </div>
                 <div
                   ref={latinRowRef}
-                  className="latin-row flex w-fit cursor-grab flex-nowrap items-start py-1 pl-1.5 pr-3 active:cursor-grabbing"
+                  className="latin-row flex w-fit cursor-grab flex-nowrap items-start py-1 pl-1.5 pr-5 active:cursor-grabbing"
                   style={{ gap: MIN_GAP }}
                 >
                   {latinEntries.map((entry, li) => {

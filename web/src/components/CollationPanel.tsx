@@ -54,29 +54,33 @@ export function CollationPanel({ vid }: { vid: string }) {
   }, [data?.cssHref]);
 
   return (
-    <section className="mt-4 rounded-md border-2 border-[#888] bg-white p-3">
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm italic text-[#523d02]">
-          CNTR collation{data?.title ? ` — ${data.title}` : ` — ${vid}`}
-        </h2>
-        <a
-          className="text-xs text-[#523d02] underline"
-          href={`https://greekcntr.org/collation/index.html?&v=${vid}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open on greekcntr.org
-        </a>
+    <section className="flex w-full justify-center">
+      <div className="w-fit max-w-full rounded-md border-2 border-[#888] bg-white p-3">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm italic text-[#523d02]">
+            CNTR collation{data?.title ? ` — ${data.title}` : ` — ${vid}`}
+          </h2>
+          <a
+            className="text-xs text-[#523d02] underline"
+            href={`https://greekcntr.org/collation/index.html?&v=${vid}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open on greekcntr.org
+          </a>
+        </div>
+        {loading && <p className="text-sm text-[#666]">Loading collation…</p>}
+        {error && !loading && <p className="text-sm text-[#a00]">{error}</p>}
+        {data && !loading && (
+          <div className="max-w-full overflow-x-auto">
+            <div
+              id="collation"
+              className="cntr-collation-embed mx-auto w-max max-w-none max-h-[28rem] overflow-y-auto text-sm"
+              dangerouslySetInnerHTML={{ __html: data.tableHtml }}
+            />
+          </div>
+        )}
       </div>
-      {loading && <p className="text-sm text-[#666]">Loading collation…</p>}
-      {error && !loading && <p className="text-sm text-[#a00]">{error}</p>}
-      {data && !loading && (
-        <div
-          id="collation"
-          className="cntr-collation-embed max-h-[28rem] overflow-auto text-sm"
-          dangerouslySetInnerHTML={{ __html: data.tableHtml }}
-        />
-      )}
     </section>
   );
 }
