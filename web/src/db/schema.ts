@@ -110,7 +110,7 @@ export type MyersOp =
 /**
  * Alignment session — visible to everyone.
  * Mutations (edit / delete) require `passwordHash` verification.
- * `clerkUserId` is retained for legacy rows; new sessions use "public".
+ * `clerk_user_id` is an unused legacy column (always "public").
  */
 export const alignmentSessions = pgTable("alignment_sessions", {
   id: serial("id").primaryKey(),

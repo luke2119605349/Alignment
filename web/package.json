@@ -12,7 +12,6 @@
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.9.25",
     "@neondatabase/serverless": "^1.2.0",
     "diff": "^9.0.0",
     "diff-match-patch": "^1.0.5",

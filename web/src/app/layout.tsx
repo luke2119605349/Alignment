@@ -7,7 +7,9 @@ export const metadata: Metadata = {
   description: "Volunteer Greek–Latin alignment and manuscript variants",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full flex flex-col bg-[#faf6ea] text-[#2b2208]">

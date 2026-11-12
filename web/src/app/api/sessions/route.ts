@@ -79,7 +79,6 @@ export async function POST(req: Request) {
   const [session] = await db
     .insert(alignmentSessions)
     .values({
-      clerkUserId: "public",
       sourceLanguageId: source.id,
       targetLanguageId: target.id,
       label,

@@ -8,10 +8,10 @@ export default function HomePage() {
       </h1>
       <p className="text-[#523d02]">
         Open an alignment session, review Aqua-seeded links between Stuttgart
-        Latin and the CNTR Greek base text, and save corrections. No email
-        sign-in is required — you are tracked with an anonymous volunteer ID
-        stored in a cookie. Manuscript variants are reconstructed with Myers
-        ops against each language&apos;s authoritative base.
+        Latin and the CNTR Greek base text, and save corrections. Sessions are
+        public; a username and password protect edit and delete. Manuscript
+        variants are reconstructed with Myers ops against each language&apos;s
+        authoritative base.
       </p>
       <div className="flex flex-wrap gap-3">
         <Link

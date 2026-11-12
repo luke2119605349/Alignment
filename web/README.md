@@ -5,12 +5,12 @@ Volunteer Greek↔Latin alignment and manuscript variant browsing.
 ## Stack
 
 - Next.js (App Router) on Vercel
-- Clerk authentication
 - Neon Postgres via Drizzle ORM
+- Session username + password for edit/delete
 
 ## Features (MVP B)
 
-1. **Alignment sessions** — volunteers get an anonymous cookie ID (Clerk email sign-in optional). Saves are scoped to a session and override Aqua/system seeds for that session only.
+1. **Alignment sessions** — public list; create with a session name, username, and password. Mutations require the session password. Saves are scoped to a session and override Aqua/system seeds for that session only.
 2. **Manuscript variants** — each language has one authoritative base word stream. Other manuscripts are reconstructed with Myers (LCS) ops against that base (not full duplicate texts).
 3. **Greek base** — CNTR Classic surface forms (`surface` / `collation_id`). Apparatus fields (Pattern/Align/Span/…) live in `greek_apparatus`, not in the readable base.
 4. **Latin base** — Stuttgart NT (`alignment_feature/files/latin.txt`).
@@ -20,7 +20,7 @@ Volunteer Greek↔Latin alignment and manuscript variant browsing.
 ```bash
 cd web
 cp .env.example .env.local
-# fill DATABASE_URL + Clerk keys
+# fill DATABASE_URL
 
 npm install
 npm run db:push          # apply schema to Neon
@@ -28,7 +28,7 @@ npm run db:seed          # verses, base words, demo variant, Aqua seeds
 npm run dev
 ```
 
-Open http://localhost:3000 — sign in, then use **Align** or **Variants**.
+Open http://localhost:3000 — use **Align** or **Variants**.
 
 ## Seed inputs
 
@@ -45,7 +45,7 @@ Full `base_files/collation.ods` import (Role/Morphology/LexemeId + apparatus) ca
 ## Vercel
 
 1. Create a Vercel project pointing at `web/` (Root Directory = `web`).
-2. Add the same env vars as `.env.example`.
+2. Add `DATABASE_URL` (and related Neon vars if needed).
 3. Deploy. Run `db:push` / `db:seed` once against the Neon URL (locally or a one-off job).
 
 ## Scripts
