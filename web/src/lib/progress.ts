@@ -160,3 +160,25 @@ export function nextVerseRef(bookIdx: number, chapter: number, verse: number) {
   }
   return null;
 }
+
+/** Go to the previous verse in NT order; null if at the start. */
+export function prevVerseRef(bookIdx: number, chapter: number, verse: number) {
+  if (verse > 1) {
+    return { bookIdx, chapter, verse: verse - 1 };
+  }
+  if (chapter > 1) {
+    const book = NT_BOOKS[bookIdx];
+    if (!book) return null;
+    const prevChapter = chapter - 1;
+    const verseCount = book.verseCounts[prevChapter - 1] ?? 1;
+    return { bookIdx, chapter: prevChapter, verse: verseCount };
+  }
+  if (bookIdx > 0) {
+    const prevBook = NT_BOOKS[bookIdx - 1];
+    if (!prevBook) return null;
+    const lastChapter = prevBook.verseCounts.length;
+    const verseCount = prevBook.verseCounts[lastChapter - 1] ?? 1;
+    return { bookIdx: bookIdx - 1, chapter: lastChapter, verse: verseCount };
+  }
+  return null;
+}

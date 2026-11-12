@@ -108,13 +108,13 @@ export type MyersOp =
   | { op: "replace"; baseIndex: number; length: number; tokens: string[] };
 
 /**
- * Volunteer alignment session.
- * clerkUserId stores either a Clerk user id or an anonymous `anon_<uuid>` cookie id.
- * `label` is the unique session name; `username` is the volunteer display name.
+ * Alignment session — visible to everyone.
+ * Mutations (edit / delete) require `passwordHash` verification.
+ * `clerkUserId` is retained for legacy rows; new sessions use "public".
  */
 export const alignmentSessions = pgTable("alignment_sessions", {
   id: serial("id").primaryKey(),
-  clerkUserId: text("clerk_user_id").notNull(),
+  clerkUserId: text("clerk_user_id").notNull().default("public"),
   sourceLanguageId: integer("source_language_id")
     .notNull()
     .references(() => languages.id),
@@ -126,6 +126,8 @@ export const alignmentSessions = pgTable("alignment_sessions", {
   label: text("label").notNull(),
   /** Volunteer display name captured at session creation. */
   username: text("username").notNull(),
+  /** scrypt salt:hash; required to modify or delete the session. */
+  passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp("closed_at", { withTimezone: true }),
 }, (t) => [

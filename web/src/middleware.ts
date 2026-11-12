@@ -1,14 +1,10 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
-import { withVolunteerCookie } from "@/lib/identity";
 
 /**
- * Clerk runs for optional account linking later.
- * Routes are not protected — volunteers are tracked via anonymous cookie.
+ * Clerk runs for optional account linking.
+ * Sessions are public; mutations are password-gated (no anonymous cookie ownership).
  */
-export default clerkMiddleware(async (_auth, req) => {
-  const { res } = withVolunteerCookie(req);
-  return res;
-});
+export default clerkMiddleware();
 
 export const config = {
   matcher: [

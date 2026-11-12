@@ -8,15 +8,9 @@ import {
   sessionVerseSubmissions,
   verses,
 } from "@/db/schema";
-import { getVolunteerId } from "@/lib/identity";
-
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, ctx: Ctx) {
-  const volunteerId = await getVolunteerId();
-  if (!volunteerId) {
-    return NextResponse.json({ error: "Missing volunteer identity" }, { status: 401 });
-  }
   const sessionId = Number((await ctx.params).id);
   if (!sessionId) {
     return NextResponse.json({ error: "Invalid session" }, { status: 400 });
@@ -28,7 +22,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     .from(alignmentSessions)
     .where(eq(alignmentSessions.id, sessionId))
     .limit(1);
-  if (!session || session.clerkUserId !== volunteerId) {
+  if (!session) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
 

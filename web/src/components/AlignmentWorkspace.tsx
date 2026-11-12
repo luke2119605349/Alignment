@@ -11,12 +11,14 @@ import {
   AlignmentCanvas,
   type LatinAlignEntry,
 } from "@/components/AlignmentCanvas";
+import { CollationPanel } from "@/components/CollationPanel";
 import {
   bookCompletion,
   chapterCompletion,
   nextVerseRef,
   ntCompletion,
   ntVerseCompletion,
+  prevVerseRef,
   progressColor,
   vidFor,
 } from "@/lib/progress";
@@ -38,7 +40,43 @@ type DiffResult = {
 type SessionSortKey = "label" | "username" | "createdAt";
 
 const SOURCE_PREF_KEY = "cntr_align_source";
+const SESSION_PW_KEY = "cntr_session_pw";
 const AUTOSAVE_MS = 300;
+
+function loadStoredPasswords(): Record<string, string> {
+  try {
+    const raw = sessionStorage.getItem(SESSION_PW_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function storePassword(sessionId: number, password: string) {
+  try {
+    const next = loadStoredPasswords();
+    next[String(sessionId)] = password;
+    sessionStorage.setItem(SESSION_PW_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearStoredPassword(sessionId: number) {
+  try {
+    const next = loadStoredPasswords();
+    delete next[String(sessionId)];
+    sessionStorage.setItem(SESSION_PW_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
+
+function getStoredPassword(sessionId: number) {
+  return loadStoredPasswords()[String(sessionId)] ?? "";
+}
 
 function formatSessionTime(iso: string) {
   try {
@@ -151,8 +189,13 @@ export function AlignmentWorkspace() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
   const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [sessionPassword, setSessionPassword] = useState("");
+  const [unlockPassword, setUnlockPassword] = useState("");
+  const [unlockError, setUnlockError] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
   const [sources, setSources] = useState<SourceMeta[]>([]);
   const [alignmentSource, setAlignmentSource] = useState("aqua");
   const [greek, setGreek] = useState<string[]>([]);
@@ -177,12 +220,16 @@ export function AlignmentWorkspace() {
   const latinRef = useRef(latinEntries);
   const greekRef = useRef(greek);
   const sessionRef = useRef(session);
+  const sessionPasswordRef = useRef(sessionPassword);
   const vidRef = useRef("");
 
   editsRef.current = edits;
   latinRef.current = latinEntries;
   greekRef.current = greek;
   sessionRef.current = session;
+  sessionPasswordRef.current = sessionPassword;
+
+  const unlocked = Boolean(session && sessionPassword);
 
   const book = NT_BOOKS[bookIdx];
   const vid = useMemo(
@@ -261,9 +308,60 @@ export function AlignmentWorkspace() {
     setCompletedVids(new Set(data.submittedVids ?? []));
   }, []);
 
+  const selectSession = useCallback(
+    (s: Session | null) => {
+      setSession(s);
+      if (!s) {
+        setSessionPassword("");
+        setUnlockPassword("");
+        setUnlockError("");
+        return;
+      }
+      const stored = getStoredPassword(s.id);
+      setSessionPassword(stored);
+      setUnlockPassword("");
+      setUnlockError("");
+      void refreshProgress(s.id);
+    },
+    [refreshProgress],
+  );
+
+  const unlockSession = useCallback(async () => {
+    if (!session) return false;
+    const password = unlockPassword;
+    if (!password) {
+      setUnlockError("Enter the session password");
+      return false;
+    }
+    setUnlocking(true);
+    setUnlockError("");
+    try {
+      const res = await fetch(`/api/sessions/${session.id}/unlock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUnlockError(data.error ?? "Incorrect password");
+        setSessionPassword("");
+        clearStoredPassword(session.id);
+        return false;
+      }
+      setSessionPassword(password);
+      storePassword(session.id, password);
+      setUnlockPassword("");
+      setStatus(`Unlocked “${session.label}” for editing`);
+      return true;
+    } finally {
+      setUnlocking(false);
+    }
+  }, [session, unlockPassword]);
+
   const createSession = useCallback(async () => {
     const label = newSessionName.trim();
     const username = newUsername.trim();
+    const password = newPassword;
     setCreateError("");
     if (!label) {
       setCreateError("Session name cannot be empty");
@@ -271,6 +369,14 @@ export function AlignmentWorkspace() {
     }
     if (!username) {
       setCreateError("Username cannot be empty");
+      return null;
+    }
+    if (!password.trim()) {
+      setCreateError("Password cannot be empty");
+      return null;
+    }
+    if (password.length < 4) {
+      setCreateError("Password must be at least 4 characters");
       return null;
     }
     setCreating(true);
@@ -283,6 +389,7 @@ export function AlignmentWorkspace() {
           targetLanguage: "grc",
           label,
           username,
+          password,
         }),
       });
       const data = await res.json();
@@ -291,10 +398,13 @@ export function AlignmentWorkspace() {
         return null;
       }
       const created = data.session as Session;
+      storePassword(created.id, password);
+      setSessionPassword(password);
       setSession(created);
       setShowCreateForm(false);
       setNewSessionName("");
       setNewUsername("");
+      setNewPassword("");
       await refreshSessions();
       await refreshProgress(created.id);
       setStatus(`Created session “${created.label}”`);
@@ -302,26 +412,39 @@ export function AlignmentWorkspace() {
     } finally {
       setCreating(false);
     }
-  }, [newSessionName, newUsername, refreshProgress, refreshSessions]);
+  }, [newPassword, newSessionName, newUsername, refreshProgress, refreshSessions]);
 
   const deleteSession = useCallback(
     async (s: Session) => {
+      const password =
+        (session?.id === s.id ? sessionPassword : "") ||
+        getStoredPassword(s.id) ||
+        window.prompt(`Password for “${s.label}” (required to delete):`) ||
+        "";
+      if (!password) {
+        setStatus("Password required to delete session");
+        return;
+      }
       const ok = window.confirm(
         `Delete session “${s.label}” (${s.username})? This cannot be undone.`,
       );
       if (!ok) return;
-      const res = await fetch(`/api/sessions/${s.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/sessions/${s.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setStatus(data.error ?? "Could not delete session");
         return;
       }
+      clearStoredPassword(s.id);
       const list = await refreshSessions();
       if (session?.id === s.id) {
         const next = list[0] ?? null;
-        setSession(next);
-        if (next) await refreshProgress(next.id);
-        else {
+        selectSession(next);
+        if (!next) {
           setCompletedVids(new Set());
           setSessionsExpanded(true);
           setShowCreateForm(true);
@@ -329,30 +452,34 @@ export function AlignmentWorkspace() {
       }
       setStatus(`Deleted session “${s.label}”`);
     },
-    [refreshProgress, refreshSessions, session?.id],
+    [refreshSessions, selectSession, session?.id, sessionPassword],
   );
 
   useEffect(() => {
     void (async () => {
       const list = await refreshSessions();
-      setSession((prev) => {
-        if (prev && list.some((s) => s.id === prev.id)) return prev;
-        const open = list.find((s) => s.status === "open") ?? list[0] ?? null;
-        return open;
-      });
       if (list.length === 0) {
+        selectSession(null);
         setSessionsExpanded(true);
         setShowCreateForm(true);
-      } else {
-        const open = list.find((s) => s.status === "open") ?? list[0];
-        if (open) await refreshProgress(open.id);
+        return;
       }
+      setSession((prev) => {
+        if (prev && list.some((s) => s.id === prev.id)) {
+          const stored = getStoredPassword(prev.id);
+          if (stored) setSessionPassword(stored);
+          return prev;
+        }
+        const open = list.find((s) => s.status === "open") ?? list[0] ?? null;
+        if (open) {
+          const stored = getStoredPassword(open.id);
+          setSessionPassword(stored);
+          void refreshProgress(open.id);
+        }
+        return open;
+      });
     })();
-  }, [refreshProgress, refreshSessions]);
-
-  useEffect(() => {
-    if (session) void refreshProgress(session.id);
-  }, [session, refreshProgress]);
+  }, [refreshProgress, refreshSessions, selectSession]);
 
   const loadVerse = useCallback(
     async (sess: Session | null, source: string, withDiff: boolean) => {
@@ -402,6 +529,11 @@ export function AlignmentWorkspace() {
     async (opts: { submit?: boolean; silent?: boolean } = {}) => {
       const sess = sessionRef.current;
       if (!sess) return false;
+      const password = sessionPasswordRef.current;
+      if (!password) {
+        if (!opts.silent) setStatus("Unlock the session with its password to save");
+        return false;
+      }
       const entries = latinRef.current;
       const g = greekRef.current;
       const e = editsRef.current;
@@ -419,11 +551,16 @@ export function AlignmentWorkspace() {
             sessionId: sess.id,
             pairs,
             submit: Boolean(opts.submit),
+            password,
           }),
         });
         const data = await res.json();
         if (!res.ok) {
           if (!opts.silent) setStatus(data.error ?? "Save failed");
+          if (res.status === 403) {
+            setSessionPassword("");
+            clearStoredPassword(sess.id);
+          }
           return false;
         }
         setDirty(false);
@@ -477,6 +614,28 @@ export function AlignmentWorkspace() {
     const next = nextVerseRef(bookIdx, chapter, verse);
     if (!next) {
       setStatus("Submitted — end of New Testament");
+      return;
+    }
+    setBookIdx(next.bookIdx);
+    setChapter(next.chapter);
+    setVerse(next.verse);
+  }
+
+  function goPrevVerse() {
+    const prev = prevVerseRef(bookIdx, chapter, verse);
+    if (!prev) {
+      setStatus("Already at the start of the New Testament");
+      return;
+    }
+    setBookIdx(prev.bookIdx);
+    setChapter(prev.chapter);
+    setVerse(prev.verse);
+  }
+
+  function goNextVerse() {
+    const next = nextVerseRef(bookIdx, chapter, verse);
+    if (!next) {
+      setStatus("Already at the end of the New Testament");
       return;
     }
     setBookIdx(next.bookIdx);
@@ -629,7 +788,7 @@ export function AlignmentWorkspace() {
           <div className="mt-4">
             {showCreateForm && (
               <form
-                className="mb-3 grid gap-3 rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3 sm:grid-cols-[1fr_1fr_auto]"
+                className="mb-3 grid gap-3 rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void createSession();
@@ -658,6 +817,19 @@ export function AlignmentWorkspace() {
                     maxLength={80}
                   />
                 </label>
+                <label className="text-xs italic">
+                  Password
+                  <input
+                    type="password"
+                    className="mt-1 w-full border-2 border-[#888] bg-white px-2 py-1.5 text-sm"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Required to edit/delete"
+                    required
+                    minLength={4}
+                    autoComplete="new-password"
+                  />
+                </label>
                 <div className="flex items-end gap-2">
                   <button
                     type="submit"
@@ -680,7 +852,7 @@ export function AlignmentWorkspace() {
                   )}
                 </div>
                 {createError && (
-                  <p className="text-xs text-[#a00] sm:col-span-3">{createError}</p>
+                  <p className="text-xs text-[#a00] sm:col-span-full">{createError}</p>
                 )}
               </form>
             )}
@@ -742,10 +914,7 @@ export function AlignmentWorkspace() {
                             <button
                               type="button"
                               className="font-medium text-left hover:underline"
-                              onClick={() => {
-                                setSession(s);
-                                void refreshProgress(s.id);
-                              }}
+                              onClick={() => selectSession(s)}
                             >
                               {s.label}
                             </button>
@@ -785,7 +954,54 @@ export function AlignmentWorkspace() {
         )}
       </section>
 
+      {session && !unlocked && (
+        <form
+          className="flex flex-wrap items-end gap-2 rounded-md border-2 border-[#c9a86a] bg-[#fff8e7] p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void unlockSession();
+          }}
+        >
+          <label className="text-xs italic">
+            Password for “{session.label}”
+            <input
+              type="password"
+              className="mt-1 block border-2 border-[#888] bg-white px-2 py-1.5 text-sm"
+              value={unlockPassword}
+              onChange={(e) => setUnlockPassword(e.target.value)}
+              placeholder="Required to edit or delete"
+              autoComplete="current-password"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={unlocking}
+            className="rounded border-2 border-black bg-[#C1FCC1] px-3 py-1.5 text-sm"
+          >
+            {unlocking ? "Unlocking…" : "Unlock"}
+          </button>
+          {unlockError && <span className="text-xs text-[#a00]">{unlockError}</span>}
+          <span className="text-xs text-[#666]">
+            Viewing is open to everyone; edits need the session password.
+          </span>
+        </form>
+      )}
+
+      {session && unlocked && (
+        <p className="text-xs text-[#2e7d32]">
+          Unlocked “{session.label}” — edits and delete are enabled in this browser tab.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={goPrevVerse}
+          className="rounded border-2 border-black bg-white px-3 py-1.5 text-sm"
+          title="Previous verse"
+        >
+          ← Prev
+        </button>
         <select
           className="border-2 border-[#888] px-2.5 py-1.5"
           style={{ background: progressColor(bookProg.pct) }}
@@ -854,6 +1070,14 @@ export function AlignmentWorkspace() {
             );
           })}
         </select>
+        <button
+          type="button"
+          onClick={goNextVerse}
+          className="rounded border-2 border-black bg-white px-3 py-1.5 text-sm"
+          title="Next verse"
+        >
+          Next →
+        </button>
         <span className="text-xs text-[#666]">
           vid {vid}
           {completed.has(vid) ? " · submitted" : ""}
@@ -900,9 +1124,9 @@ export function AlignmentWorkspace() {
       </div>
 
       <p className="text-sm italic text-[#444]">
-        Edits autosave after 300ms when indices are valid. Tab to{" "}
-        <strong>Submit and Proceed</strong> to mark the verse complete and
-        advance.
+        {unlocked
+          ? "Edits autosave after 300ms when indices are valid. Tab to Submit and Proceed to mark the verse complete and advance."
+          : "Unlock the session with its password to edit alignments."}
         {showDiff ? " Red dashed lines were removed from the baseline." : ""}
       </p>
 
@@ -915,6 +1139,7 @@ export function AlignmentWorkspace() {
             edits={edits}
             onEdit={onEdit}
             diffRemoved={showDiff ? liveDiff?.removed : []}
+            editable={unlocked}
             onRequestSubmit={() => submitBtnRef.current?.focus()}
           />
 
@@ -930,10 +1155,24 @@ export function AlignmentWorkspace() {
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
+              type="button"
+              onClick={goPrevVerse}
+              className="rounded border-2 border-black bg-white px-3 py-2 text-sm"
+            >
+              ← Prev
+            </button>
+            <button
+              type="button"
+              onClick={goNextVerse}
+              className="rounded border-2 border-black bg-white px-3 py-2 text-sm"
+            >
+              Next →
+            </button>
+            <button
               ref={submitBtnRef}
               type="button"
               onClick={() => void submitAndProceed()}
-              disabled={loading || saving}
+              disabled={loading || saving || !unlocked}
               className="rounded border-2 border-black bg-[#C1FCC1] px-4 py-2 text-sm font-medium"
             >
               Submit and Proceed
@@ -941,7 +1180,7 @@ export function AlignmentWorkspace() {
             <button
               type="button"
               onClick={() => void persistAlignment({ submit: false })}
-              disabled={loading || saving}
+              disabled={loading || saving || !unlocked}
               className="rounded border-2 border-black bg-white px-3 py-2 text-sm"
             >
               Save draft
@@ -957,6 +1196,7 @@ export function AlignmentWorkspace() {
             <button
               type="button"
               onClick={resetToBaseline}
+              disabled={!unlocked}
               className="rounded border-2 border-black bg-[#FAD780] px-3 py-2 text-sm"
             >
               Restore default indices
@@ -964,6 +1204,7 @@ export function AlignmentWorkspace() {
             <button
               type="button"
               onClick={clearLinks}
+              disabled={!unlocked}
               className="rounded border-2 border-black bg-white px-3 py-2 text-sm"
             >
               Clear links
@@ -999,6 +1240,8 @@ export function AlignmentWorkspace() {
               )}
             />
           )}
+
+          <CollationPanel vid={vid} />
         </section>
       )}
     </div>

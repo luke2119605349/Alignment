@@ -17,16 +17,11 @@ import {
   listAlignmentSources,
   loadBaselineForVerse,
 } from "@/lib/aqua_sources";
-import { getVolunteerId } from "@/lib/identity";
+import { verifyPassword } from "@/lib/passwords";
 
 type Ctx = { params: Promise<{ vid: string }> };
 
 export async function GET(req: Request, ctx: Ctx) {
-  const volunteerId = await getVolunteerId();
-  if (!volunteerId) {
-    return NextResponse.json({ error: "Missing volunteer identity" }, { status: 401 });
-  }
-
   const { vid } = await ctx.params;
   const url = new URL(req.url);
   const sessionId = url.searchParams.get("sessionId");
@@ -126,20 +121,19 @@ export async function GET(req: Request, ctx: Ctx) {
 }
 
 export async function PUT(req: Request, ctx: Ctx) {
-  const volunteerId = await getVolunteerId();
-  if (!volunteerId) {
-    return NextResponse.json({ error: "Missing volunteer identity" }, { status: 401 });
-  }
-
   const { vid } = await ctx.params;
   const body = await req.json();
   const sessionId = Number(body.sessionId);
   const submit = Boolean(body.submit);
+  const password = typeof body.password === "string" ? body.password : "";
   const pairs: { sourceWordIndex: number; targetWordIndex: number; score?: number }[] =
     body.pairs ?? [];
 
   if (!sessionId || !Array.isArray(pairs)) {
     return NextResponse.json({ error: "sessionId and pairs required" }, { status: 400 });
+  }
+  if (!password) {
+    return NextResponse.json({ error: "Password required to modify session" }, { status: 401 });
   }
 
   const db = getDb();
@@ -149,8 +143,11 @@ export async function PUT(req: Request, ctx: Ctx) {
     .where(eq(alignmentSessions.id, sessionId))
     .limit(1);
 
-  if (!session || session.clerkUserId !== volunteerId) {
+  if (!session) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
+  if (!verifyPassword(password, session.passwordHash)) {
+    return NextResponse.json({ error: "Incorrect password" }, { status: 403 });
   }
   if (session.status !== "open") {
     return NextResponse.json({ error: "Session is closed" }, { status: 400 });
