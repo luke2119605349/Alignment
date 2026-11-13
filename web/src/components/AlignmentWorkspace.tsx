@@ -494,11 +494,9 @@ export function AlignmentWorkspace() {
 
   const deleteSession = useCallback(
     async (s: Session) => {
+      // Always prompt — do not reuse an unlocked/stored session password.
       const password =
-        (session?.id === s.id ? sessionPassword : "") ||
-        getStoredPassword(s.id) ||
-        window.prompt(`Password for “${s.label}” (required to delete):`) ||
-        "";
+        window.prompt(`Password for “${s.label}” (required to delete):`) ?? "";
       if (!password) {
         setStatus("Password required to delete session");
         return;
@@ -530,7 +528,7 @@ export function AlignmentWorkspace() {
       }
       setStatus(`Deleted session “${s.label}”`);
     },
-    [refreshSessions, selectSession, session?.id, sessionPassword],
+    [refreshSessions, selectSession, session?.id],
   );
 
   // Bootstrap once on mount — do not depend on callback identities (re-running
