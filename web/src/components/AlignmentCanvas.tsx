@@ -402,8 +402,8 @@ export function AlignmentCanvas({
           title={
             "Drag the Greek or Latin ⇄ handle sideways to untangle overlapping links. " +
             "Resize the workspace from the bottom edge. " +
-            "Edits autosave after 300ms when indices are valid. " +
-            "Tab to Submit and Proceed to mark a verse complete and advance. " +
+            "Edits autosave and autosubmit after 300ms when indices are valid (session unlocked). " +
+            "Tab to Submit and Proceed to advance to the next verse. " +
             "Unlock a session with its password to edit."
           }
         >

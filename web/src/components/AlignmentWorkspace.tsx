@@ -39,6 +39,7 @@ type SessionSortKey = "label" | "username" | "createdAt";
 
 const SOURCE_PREF_KEY = "cntr_align_source";
 const SESSION_PW_KEY = "cntr_session_pw";
+/** Debounced autosave + autosubmit after well-formed edits (unlocked sessions). */
 const AUTOSAVE_MS = 300;
 
 function loadStoredPasswords(): Record<string, string> {
@@ -650,7 +651,11 @@ export function AlignmentWorkspace() {
         setDirty(false);
         if (opts.submit) {
           setCompletedVids((prev) => new Set(prev).add(vidRef.current));
-          setStatus(`Submitted ${vidRef.current}`);
+          if (!opts.silent) {
+            setStatus(`Submitted ${vidRef.current}`);
+          } else {
+            setStatus(`Autosaved · submitted ${vidRef.current}`);
+          }
           await refreshProgress(sess.id);
         } else if (!opts.silent) {
           setStatus(`Autosaved ${data.saved} links`);
@@ -665,18 +670,27 @@ export function AlignmentWorkspace() {
     [refreshProgress],
   );
 
-  // Debounced autosave on well-formed edits
+  // Debounced autosave + autosubmit (300ms) on well-formed edits when unlocked
   useEffect(() => {
-    if (!dirty || !session || loading) return;
+    if (!dirty || !session || !unlocked || loading) return;
     if (!editsAreWellFormed(latinEntries, edits, greek.length)) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
-      void persistAlignment({ silent: true });
+      void persistAlignment({ silent: true, submit: true });
     }, AUTOSAVE_MS);
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     };
-  }, [dirty, edits, greek.length, latinEntries, loading, persistAlignment, session]);
+  }, [
+    dirty,
+    edits,
+    greek.length,
+    latinEntries,
+    loading,
+    persistAlignment,
+    session,
+    unlocked,
+  ]);
 
   function onSourceChange(id: string) {
     setAlignmentSource(id);
@@ -1233,7 +1247,7 @@ export function AlignmentWorkspace() {
             onRequestSubmit={onRequestSubmit}
           />
 
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <button
               type="button"
               onClick={goPrevVerse}
@@ -1313,7 +1327,7 @@ export function AlignmentWorkspace() {
             />
           )}
 
-          <div className="mt-6">
+          <div className="mt-10">
             <CollationPanel vid={vid} />
           </div>
         </section>
