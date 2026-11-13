@@ -30,6 +30,9 @@ type Session = {
   username: string;
   status: string;
   createdAt: string;
+  submittedCount?: number;
+  linkCount?: number;
+  lastActivityAt?: string | null;
 };
 type SourceMeta = { id: string; displayName: string; filename: string; isDefault?: boolean };
 type SessionSortKey = "label" | "username" | "createdAt";
@@ -352,6 +355,9 @@ export function AlignmentWorkspace() {
         label: s.label ?? "",
         username: s.username ?? "",
         createdAt: s.createdAt,
+        submittedCount: Number(s.submittedCount ?? 0),
+        linkCount: Number(s.linkCount ?? 0),
+        lastActivityAt: s.lastActivityAt ?? null,
       }),
     );
     setSessions(list);
@@ -959,6 +965,9 @@ export function AlignmentWorkspace() {
                         All verses
                       </th>
                       <th className="border-b-2 border-[#ddd] px-3 py-2 font-normal italic">
+                        Activity
+                      </th>
+                      <th className="border-b-2 border-[#ddd] px-3 py-2 font-normal italic">
                         Actions
                       </th>
                     </tr>
@@ -967,6 +976,8 @@ export function AlignmentWorkspace() {
                     {sortedSessions.map((s) => {
                       const active = session?.id === s.id;
                       const prog = sessionProgress[s.id];
+                      const submitted = s.submittedCount ?? 0;
+                      const links = s.linkCount ?? 0;
                       return (
                         <tr
                           key={s.id}
@@ -1008,6 +1019,16 @@ export function AlignmentWorkspace() {
                             ) : (
                               <span className="text-xs text-[#888]">…</span>
                             )}
+                          </td>
+                          <td className="border-b border-[#eee] px-3 py-2 text-xs text-[#444]">
+                            <div>
+                              {submitted} submitted · {links} links
+                            </div>
+                            <div className="text-[#888]">
+                              {s.lastActivityAt
+                                ? `Last ${formatSessionTime(s.lastActivityAt)}`
+                                : "No edits yet"}
+                            </div>
                           </td>
                           <td
                             className="border-b border-[#eee] px-3 py-2 whitespace-nowrap"
@@ -1201,7 +1222,7 @@ export function AlignmentWorkspace() {
         </span>
       </div>
 
-      {session && !sessionsExpanded && (
+      {session && (
         <section className="w-full min-w-0">
           <AlignmentCanvas
             greek={greek}

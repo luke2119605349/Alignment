@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { alignmentSessions, languages } from "@/db/schema";
@@ -8,7 +8,7 @@ function normalizeName(raw: unknown) {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
-/** All sessions are public (password hashes stripped). */
+/** All sessions are public (password hashes stripped), with activity stats. */
 export async function GET() {
   const db = getDb();
   const rows = await db
@@ -21,6 +21,28 @@ export async function GET() {
       closedAt: alignmentSessions.closedAt,
       sourceLanguageId: alignmentSessions.sourceLanguageId,
       targetLanguageId: alignmentSessions.targetLanguageId,
+      submittedCount: sql<number>`coalesce((
+        select count(*)::int
+        from session_verse_submissions sv
+        where sv.session_id = ${alignmentSessions.id}
+      ), 0)`,
+      linkCount: sql<number>`coalesce((
+        select count(*)::int
+        from alignments a
+        where a.session_id = ${alignmentSessions.id}
+          and a.superseded_by_id is null
+      ), 0)`,
+      lastActivityAt: sql<string | null>`(
+        select max(ts) from (
+          select max(sv.submitted_at) as ts
+          from session_verse_submissions sv
+          where sv.session_id = ${alignmentSessions.id}
+          union all
+          select max(a.created_at) as ts
+          from alignments a
+          where a.session_id = ${alignmentSessions.id}
+        ) activity
+      )`,
     })
     .from(alignmentSessions)
     .orderBy(asc(alignmentSessions.createdAt));
